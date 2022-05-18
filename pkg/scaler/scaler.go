@@ -179,8 +179,8 @@ func (s *Scaler) Do(ctx context.Context) {
 	}
 
 	nodes = nodes.
-		SkipNode(s.opt.ControllerNodeName).
-		SkipOffline()
+		ExcludeNode(s.opt.ControllerNodeName).
+		ExcludeOffline()
 
 	usage, err := s.client.GetCurrentUsage(ctx, int64(len(nodes)))
 	if err != nil {
@@ -434,8 +434,8 @@ func (s *Scaler) gc(ctx context.Context) error {
 	}
 
 	nodes = nodes.
-		SkipNode(s.opt.ControllerNodeName).
-		SkipOffline()
+		ExcludeNode(s.opt.ControllerNodeName).
+		ExcludeOffline()
 
 	instances, err := s.backend.Instances()
 	if err != nil {

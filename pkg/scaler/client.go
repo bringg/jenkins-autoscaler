@@ -63,7 +63,7 @@ func (n Nodes) IsExist(name string) (*gojenkins.Node, bool) {
 	return nil, false
 }
 
-func (n Nodes) SkipOffline() Nodes {
+func (n Nodes) ExcludeOffline() Nodes {
 	nodes := make(Nodes, 0)
 	for name, node := range n {
 		if node.Raw.Offline == true {
@@ -76,7 +76,7 @@ func (n Nodes) SkipOffline() Nodes {
 	return nodes
 }
 
-func (n Nodes) SkipNode(name string) Nodes {
+func (n Nodes) ExcludeNode(name string) Nodes {
 	nodes := make(Nodes, 0)
 	for i, node := range n {
 		if name == node.Raw.DisplayName {

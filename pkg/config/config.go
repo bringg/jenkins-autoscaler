@@ -94,7 +94,7 @@ var (
 		{
 			Name:     "node_num_executors",
 			Help:     "number of executors per node",
-			Default:  4,
+			Default:  1,
 			NoPrefix: true,
 		},
 		{
