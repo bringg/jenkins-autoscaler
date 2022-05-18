@@ -1,0 +1,23 @@
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: jas
+    ldflags:
+      - -s -w -X github.com/bringg/jenkins-autoscaler/cmd.version={{.Version}}
+    main: cmd/jas/main.go
+checksum:
+  name_template: 'checksums.txt'
+changelog:
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

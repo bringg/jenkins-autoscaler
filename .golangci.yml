@@ -1,0 +1,25 @@
+run:
+  timeout: 3m
+
+linters:
+  disable-all: true
+  enable:
+  - gofmt
+  - goimports
+  - revive
+  - staticcheck
+  - gocyclo
+  - ineffassign
+  - misspell
+  - gocritic
+  - govet
+  - unconvert
+  - promlinter
+  - prealloc
+  - varcheck
+
+linters-settings:
+  prealloc:
+    simple: true
+    for-loops: true
+    range-loops: true

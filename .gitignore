@@ -1,0 +1,7 @@
+dist/
+junit.xml
+cover.out
+coverage.out
+configs/
+
+dist/
