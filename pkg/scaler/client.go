@@ -30,18 +30,18 @@ func NewClient(opt *Options) *WrapperClient {
 }
 
 // GetCurrentUsage return the current usage of jenkins nodes.
-func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
+func (c *WrapperClient) GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error) {
 	computers, err := c.computers(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	currentUsage := int64((float64(computers.BusyExecutors) / float64(computers.TotalExecutors)) * 100)
+	currentUsage := int64((float64(computers.BusyExecutors) / float64(numNodes*c.opt.NodeNumExecutors)) * 100)
 
 	return currentUsage, nil
 }
 
-func (c *WrapperClient) GetAllNodes(ctx context.Context, withBuildInNode bool) (Nodes, error) {
+func (c *WrapperClient) GetAllNodes(ctx context.Context) (Nodes, error) {
 	computers, err := c.computers(ctx)
 	if err != nil {
 		return nil, err
@@ -49,23 +49,44 @@ func (c *WrapperClient) GetAllNodes(ctx context.Context, withBuildInNode bool) (
 
 	nodes := make(Nodes, len(computers.Computers))
 	for _, node := range computers.Computers {
-		// skip master node
-		if !withBuildInNode && c.opt.ControllerNodeName == node.DisplayName {
-			continue
-		}
-
 		nodes[node.DisplayName] = &gojenkins.Node{Jenkins: c.Jenkins, Raw: node, Base: "/computer/" + node.DisplayName}
 	}
 
 	return nodes, nil
 }
 
-func (n Nodes) IsExist(name string) bool {
-	if _, ok := n[name]; ok {
-		return true
+func (n Nodes) IsExist(name string) (*gojenkins.Node, bool) {
+	if node, ok := n[name]; ok {
+		return node, true
 	}
 
-	return false
+	return nil, false
+}
+
+func (n Nodes) SkipOffline() Nodes {
+	nodes := make(Nodes, 0)
+	for name, node := range n {
+		if node.Raw.Offline == true {
+			continue
+		}
+
+		nodes[name] = node
+	}
+
+	return nodes
+}
+
+func (n Nodes) SkipNode(name string) Nodes {
+	nodes := make(Nodes, 0)
+	for i, node := range n {
+		if name == node.Raw.DisplayName {
+			continue
+		}
+
+		nodes[i] = node
+	}
+
+	return nodes
 }
 
 func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, error) {

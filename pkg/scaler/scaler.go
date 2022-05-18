@@ -22,9 +22,9 @@ import (
 
 type (
 	Jenkinser interface {
-		GetCurrentUsage(ctx context.Context) (int64, error)
+		GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error)
 		DeleteNode(ctx context.Context, name string) (bool, error)
-		GetAllNodes(ctx context.Context, withMaster bool) (Nodes, error)
+		GetAllNodes(ctx context.Context) (Nodes, error)
 		GetNode(ctx context.Context, name string) (*gojenkins.Node, error)
 	}
 
@@ -60,6 +60,7 @@ type (
 		JenkinsToken                           string      `config:"jenkins_token" validate:"required"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
+		NodeNumExecutors                       int64       `config:"node_num_executors"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -170,16 +171,20 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	logger := s.logger
 
-	usage, err := s.client.GetCurrentUsage(ctx)
+	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
-		logger.Errorf("failed getting current usage: %v", err)
+		logger.Error(err)
 
 		return
 	}
 
-	nodes, err := s.client.GetAllNodes(s.ctx, false)
+	nodes = nodes.
+		SkipNode(s.opt.ControllerNodeName).
+		SkipOffline()
+
+	usage, err := s.client.GetCurrentUsage(ctx, int64(len(nodes)))
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("failed getting current usage: %v", err)
 
 		return
 	}
@@ -253,6 +258,10 @@ func (s *Scaler) scaleUp(usage int64) error {
 		logger.Infof("need %d extra nodes, but can't go over the limit of %d", newSize-curSize, maxSize)
 
 		newSize = maxSize
+	}
+
+	if newSize == curSize {
+		return nil
 	}
 
 	logger.Infof("will spin up %d extra nodes", newSize-curSize)
@@ -419,10 +428,14 @@ func (s *Scaler) gc(ctx context.Context) error {
 	logger := s.logger
 	logger.Debug("running GC...")
 
-	nodes, err := s.client.GetAllNodes(ctx, false)
+	nodes, err := s.client.GetAllNodes(ctx)
 	if err != nil {
 		return err
 	}
+
+	nodes = nodes.
+		SkipNode(s.opt.ControllerNodeName).
+		SkipOffline()
 
 	instances, err := s.backend.Instances()
 	if err != nil {
@@ -434,7 +447,7 @@ func (s *Scaler) gc(ctx context.Context) error {
 	for _, instance := range instances {
 		// verify that each instance is being seen by Jenkins
 		name := instance.Name()
-		if nodes.IsExist(name) {
+		if node, ok := nodes.IsExist(name); ok && !node.Raw.Offline {
 			continue
 		}
 

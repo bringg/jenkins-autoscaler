@@ -52,33 +52,33 @@ func (mr *MockJenkinserMockRecorder) DeleteNode(ctx, name interface{}) *gomock.C
 }
 
 // GetAllNodes mocks base method.
-func (m *MockJenkinser) GetAllNodes(ctx context.Context, withMaster bool) (scaler.Nodes, error) {
+func (m *MockJenkinser) GetAllNodes(ctx context.Context) (scaler.Nodes, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllNodes", ctx, withMaster)
+	ret := m.ctrl.Call(m, "GetAllNodes", ctx)
 	ret0, _ := ret[0].(scaler.Nodes)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllNodes indicates an expected call of GetAllNodes.
-func (mr *MockJenkinserMockRecorder) GetAllNodes(ctx, withMaster interface{}) *gomock.Call {
+func (mr *MockJenkinserMockRecorder) GetAllNodes(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllNodes", reflect.TypeOf((*MockJenkinser)(nil).GetAllNodes), ctx, withMaster)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllNodes", reflect.TypeOf((*MockJenkinser)(nil).GetAllNodes), ctx)
 }
 
 // GetCurrentUsage mocks base method.
-func (m *MockJenkinser) GetCurrentUsage(ctx context.Context) (int64, error) {
+func (m *MockJenkinser) GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentUsage", ctx)
+	ret := m.ctrl.Call(m, "GetCurrentUsage", ctx, numNodes)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCurrentUsage indicates an expected call of GetCurrentUsage.
-func (mr *MockJenkinserMockRecorder) GetCurrentUsage(ctx interface{}) *gomock.Call {
+func (mr *MockJenkinserMockRecorder) GetCurrentUsage(ctx, numNodes interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentUsage", reflect.TypeOf((*MockJenkinser)(nil).GetCurrentUsage), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentUsage", reflect.TypeOf((*MockJenkinser)(nil).GetCurrentUsage), ctx, numNodes)
 }
 
 // GetNode mocks base method.
