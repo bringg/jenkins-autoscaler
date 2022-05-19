@@ -69,12 +69,26 @@ var _ = Describe("Scaler", func() {
 
 	Describe("GC", func() {
 		It("clear zombies", func() {
-			client.EXPECT().GetAllNodes(gomock.Any(), false).Return(makeFakeNodes(3), nil).Times(1)
+			client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(3), nil).Times(1)
 			// provider will decrease instances to 3
 			bk.EXPECT().Instances().Return(makeFakeInstances(5), nil).Times(1)
 			bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
 				Expect(ins).To(HaveLen(2))
 
+				return nil
+			}).Times(1)
+
+			scal.GC(ctx)
+		})
+
+		It("clear also if node is exist but in offline", func() {
+			nodes := mergeFakeTypes(makeFakeNodes(2, WithOffline()), makeFakeNodes(4))
+
+			// this function should already check if jenkins node is offline and not include it in result but we have another check for sure
+			client.EXPECT().GetAllNodes(gomock.Any()).Return(nodes, nil).Times(1)
+			bk.EXPECT().Instances().Return(makeFakeInstances(6), nil).Times(1)
+			bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
+				Expect(ins).To(HaveLen(2))
 				return nil
 			}).Times(1)
 
@@ -86,8 +100,8 @@ var _ = Describe("Scaler", func() {
 		Context("scaleUp", func() {
 			It("run provider with min nodes and havy usage, will scale out provider to 1 more", func() {
 				// 77% usage, and default scale up threshold is 70%
-				client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(77), nil).Times(1)
-				client.EXPECT().GetAllNodes(gomock.Any(), false).Return(makeFakeNodes(3), nil).Times(1)
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(77), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(3), nil).Times(1)
 				// cloud backend have 2 running instances, this is default min value
 				bk.EXPECT().CurrentSize().Return(int64(3), nil).Times(1)
 				// provider will use new value of 3
@@ -99,10 +113,10 @@ var _ = Describe("Scaler", func() {
 		Context("scaleDown", func() {
 			It("run provider with 5 nodes and low usage, will scale in provider, decrease from 5 to 4", func() {
 				// 28% usage, and default scale down threshold is 30%
-				client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(28), nil).Times(1)
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(28), nil).Times(1)
 				// will retrun current provider running nodes
 				nodes := makeFakeNodes(5)
-				client.EXPECT().GetAllNodes(gomock.Any(), false).Return(nodes, nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(nodes, nil).Times(1)
 				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
 					return nodes[name], nil
 				}).Times(1)
@@ -117,9 +131,9 @@ var _ = Describe("Scaler", func() {
 		Context("scaleToMinimum", func() {
 			It("run provider with 0 nodes, will scale out provider to default values", func() {
 				// no usage, cluster is empty of jobs, starting the day
-				client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(98), nil).Times(1)
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(98), nil).Times(1)
 				// no running nodes
-				client.EXPECT().GetAllNodes(gomock.Any(), false).Return(make(scaler.Nodes), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(make(scaler.Nodes), nil).Times(1)
 				// provider will use default value of 2
 				bk.EXPECT().Resize(int64(2)).Return(nil).Times(1)
 
@@ -133,11 +147,25 @@ var _ = Describe("Scaler", func() {
 				Expect(err).To(Not(HaveOccurred()))
 
 				// no usage, cluster is empty of jobs, starting the day
-				client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(0), nil).Times(1)
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(1)
 				// no running nodes
-				client.EXPECT().GetAllNodes(gomock.Any(), false).Return(make(scaler.Nodes), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(make(scaler.Nodes), nil).Times(1)
 				// provider will use default value of 1
 				bk.EXPECT().Resize(int64(1)).Return(nil).Times(1)
+
+				scal.Do(ctx)
+			})
+
+			It("run provider with 0 nodes, in working hours", func() {
+				scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
+				Expect(err).To(Not(HaveOccurred()))
+
+				// no usage, cluster is empty of jobs, starting the day
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(1)
+				// no running nodes
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(make(scaler.Nodes), nil).Times(1)
+				// provider will use default value of 2
+				bk.EXPECT().Resize(int64(2)).Return(nil).Times(1)
 
 				scal.Do(ctx)
 			})

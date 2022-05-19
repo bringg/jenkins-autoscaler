@@ -92,6 +92,12 @@ var (
 			NoPrefix: true,
 		},
 		{
+			Name:     "node_num_executors",
+			Help:     "number of executors per node",
+			Default:  1,
+			NoPrefix: true,
+		},
+		{
 			Name:     "min_nodes_during_working_hours",
 			Help:     "the minimum nodes to keep while inside working hours",
 			Default:  2,
