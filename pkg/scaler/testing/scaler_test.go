@@ -2,9 +2,7 @@ package scaler_test
 
 import (
 	"context"
-	"time"
 
-	"bou.ke/monkey"
 	"github.com/bndr/gojenkins"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +23,6 @@ var _ = Describe("Scaler", func() {
 	var err error
 	var client *mock_client.MockJenkinser
 	var bk *mock_backend.MockBackend
-	var patch *monkey.PatchGuard
 	var logger *logrus.Logger
 	var cfg configmap.Simple
 
@@ -34,8 +31,6 @@ var _ = Describe("Scaler", func() {
 	metrics := scaler.NewMetrics()
 
 	BeforeEach(func() {
-		wayback := time.Date(2022, time.February, 27, 6, 2, 3, 4, time.UTC)
-		patch = monkey.Patch(time.Now, func() time.Time { return wayback })
 		mockController, ctx = gomock.WithContext(context.Background(), GinkgoT())
 
 		client = mock_client.NewMockJenkinser(mockController)
@@ -55,15 +50,17 @@ var _ = Describe("Scaler", func() {
 		cfg.Set("max_nodes", "10")
 		cfg.Set("min_nodes_during_working_hours", "2")
 		cfg.Set("scale_down_grace_period_during_working_hours", "1h")
-		cfg.Set("disable_working_hours", "true")
+		cfg.Set("working_hours_cron_expressions", "* * * * *")
 
 		logger, _ = test.NewNullLogger()
+		logger.SetOutput(GinkgoWriter)
+		logger.SetLevel(logrus.DebugLevel)
+
 		scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
 		Expect(err).To(Not(HaveOccurred()))
 	})
 
 	AfterEach(func() {
-		patch.Unpatch()
 		mockController.Finish()
 	})
 
@@ -78,6 +75,8 @@ var _ = Describe("Scaler", func() {
 				return nil
 			}).Times(1)
 
+			client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
+
 			scal.GC(ctx)
 		})
 
@@ -89,8 +88,11 @@ var _ = Describe("Scaler", func() {
 			bk.EXPECT().Instances().Return(makeFakeInstances(6), nil).Times(1)
 			bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
 				Expect(ins).To(HaveLen(2))
+
 				return nil
 			}).Times(1)
+
+			client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 			scal.GC(ctx)
 		})
@@ -99,13 +101,13 @@ var _ = Describe("Scaler", func() {
 	Describe("Do", func() {
 		Context("scaleUp", func() {
 			It("run provider with min nodes and havy usage, will scale out provider to 1 more", func() {
-				// 77% usage, and default scale up threshold is 70%
+				// 77% usage, and default scale up threshold is 77%
 				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(77), nil).Times(1)
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(3), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(2), nil).Times(1)
 				// cloud backend have 2 running instances, this is default min value
-				bk.EXPECT().CurrentSize().Return(int64(3), nil).Times(1)
+				bk.EXPECT().CurrentSize().Return(int64(2), nil).Times(1)
 				// provider will use new value of 3
-				bk.EXPECT().Resize(int64(4)).Return(nil).Times(1)
+				bk.EXPECT().Resize(int64(3)).Return(nil).Times(1)
 
 				scal.Do(ctx)
 			})
@@ -129,19 +131,41 @@ var _ = Describe("Scaler", func() {
 			})
 		})
 		Context("scaleToMinimum", func() {
-			It("run provider with 0 nodes, will scale out provider to default values", func() {
+			It("run provider with 1 node, not in working hours, with usage over threshold", func() {
+				cfg.Set("working_hours_cron_expressions", "@yearly")
+
+				scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
+				Expect(err).To(Not(HaveOccurred()))
+
 				// no usage, cluster is empty of jobs, starting the day
-				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(98), nil).Times(1)
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(80), nil).Times(1)
 				// no running nodes
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(make(scaler.Nodes), nil).Times(1)
-				// provider will use default value of 2
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(1), nil).Times(1)
+
+				// cloud backend have 1 running instances, this is default min value
+				bk.EXPECT().CurrentSize().Return(int64(1), nil).Times(1)
+				// provider will use new value of 2
 				bk.EXPECT().Resize(int64(2)).Return(nil).Times(1)
 
 				scal.Do(ctx)
 			})
 
+			It("run provider with 1 node, not in working hours, with usage under threshold", func() {
+				cfg.Set("working_hours_cron_expressions", "@yearly")
+
+				scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
+				Expect(err).To(Not(HaveOccurred()))
+
+				// no usage, cluster is empty of jobs, starting the day
+				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(45), nil).Times(1)
+				// no running nodes
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(makeFakeNodes(1), nil).Times(1)
+
+				scal.Do(ctx)
+			})
+
 			It("run provider with 0 nodes, not in working hours", func() {
-				cfg.Set("disable_working_hours", "false")
+				cfg.Set("working_hours_cron_expressions", "@yearly")
 
 				scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
 				Expect(err).To(Not(HaveOccurred()))
@@ -157,9 +181,6 @@ var _ = Describe("Scaler", func() {
 			})
 
 			It("run provider with 0 nodes, in working hours", func() {
-				scal, err = scaler.NewWithClient(cfg, bk, client, logger, metrics)
-				Expect(err).To(Not(HaveOccurred()))
-
 				// no usage, cluster is empty of jobs, starting the day
 				client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(1)
 				// no running nodes

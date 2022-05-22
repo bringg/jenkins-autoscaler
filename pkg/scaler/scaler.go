@@ -191,8 +191,7 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	logger.Debugf("current nodes usage is %d%%", usage)
 
-	isMin := s.isMinimumNodes(nodes)
-	if isMin && usage > s.opt.ScaleUpThreshold {
+	if len(nodes) > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
 
 		s.metrics.numScaleUps.WithLabelValues(s.backend.Name()).Inc()
@@ -206,6 +205,7 @@ func (s *Scaler) Do(ctx context.Context) {
 		return
 	}
 
+	isMin := s.isMinimumNodes(nodes)
 	if isMin && usage < s.opt.ScaleDownThreshold {
 		logger.Infof("current usage is %d%% < %d%% then specified threshold, will try to scale down", usage, s.opt.ScaleDownThreshold)
 
@@ -246,6 +246,14 @@ func (s *Scaler) scaleUp(usage int64) error {
 		return err
 	}
 
+	if curSize == 0 {
+		if err := s.backend.Resize(1); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	maxSize := s.opt.MaxNodes
 	if curSize >= maxSize {
 		logger.Infof("reached maximum of %d nodes. won't scale up", maxSize)
@@ -280,7 +288,7 @@ func (s *Scaler) scaleUp(usage int64) error {
 	return nil
 }
 
-// scaleUp check if need to scale down nodes.
+// scaleDown check if need to scale down nodes.
 func (s *Scaler) scaleDown(nodes Nodes) error {
 	logger := s.logger
 	isWH := s.isWorkingHour()
@@ -345,7 +353,9 @@ func (s *Scaler) isMinimumNodes(nodes Nodes) bool {
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
 
-	if isWH && int64(len(nodes)) > minNodes {
+	s.logger.Debugf("is working hours now: %v - cron: %s", isWH, s.opt.WorkingHoursCronExpressions)
+
+	if isWH && int64(len(nodes)) >= minNodes {
 		return true
 	}
 
@@ -472,6 +482,15 @@ func (s *Scaler) gc(ctx context.Context) error {
 	}
 
 	if len(ins) > 0 && !s.opt.DryRun {
+		// try to remove it from jenkins
+		ins.Itr(func(i backend.Instance) bool {
+			if _, err := s.client.DeleteNode(ctx, i.Name()); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+
+			return false
+		})
+
 		if err = s.backend.Terminate(ins); err != nil {
 			errs = multierror.Append(errs, err)
 		}
