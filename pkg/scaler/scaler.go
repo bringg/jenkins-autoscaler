@@ -292,14 +292,18 @@ func (s *Scaler) scaleUp(usage int64) error {
 func (s *Scaler) scaleDown(nodes Nodes) error {
 	logger := s.logger
 	isWH := s.isWorkingHour()
-	if isWH && time.Since(s.lastScaleDown) < time.Duration(s.opt.ScaleDownGracePeriodDuringWorkingHours) {
-		logger.Info("still in grace period during working hours. won't scale down")
+	lastScaleDown := time.Since(s.lastScaleDown)
+	scaleDownWHPeriod := time.Duration(s.opt.ScaleDownGracePeriodDuringWorkingHours)
+
+	if isWH && lastScaleDown < scaleDownWHPeriod {
+		logger.Infof("still in grace period during working hours. won't scale down: %v < %v", lastScaleDown, scaleDownWHPeriod)
 
 		return nil
 	}
 
-	if !isWH && time.Since(s.lastScaleDown) < time.Duration(s.opt.ScaleDownGracePeriod) {
-		logger.Info("still in grace period outside working hours. won't scale down")
+	scaleDownGracePeriod := time.Duration(s.opt.ScaleDownGracePeriod)
+	if !isWH && lastScaleDown < scaleDownGracePeriod {
+		logger.Infof("still in grace period outside working hours. won't scale down: %v < %v", lastScaleDown, scaleDownGracePeriod)
 
 		return nil
 	}
@@ -307,18 +311,17 @@ func (s *Scaler) scaleDown(nodes Nodes) error {
 	for _, node := range nodes {
 		name := node.GetName()
 
-		if err := s.removeNode(name); nil != err {
+		ok, err := s.removeNode(name)
+		if err != nil {
 			// if failing during node destruction, logging error and continue to the next one
 			logger.Errorf("failed destroying %s with error %s. continue to next node", name, err.Error())
 
 			continue
 		}
 
-		logger.Infof("node %s was removed from cluster", name)
-
-		s.lastScaleDown = time.Now()
-
-		return nil
+		if ok {
+			return nil
+		}
 	}
 
 	logger.Debug("no idle node was found")
@@ -383,45 +386,49 @@ func (s *Scaler) isWorkingHour() bool {
 }
 
 // removeNode remove the given node name from jenkins and from the cloud.
-func (s *Scaler) removeNode(name string) error {
+func (s *Scaler) removeNode(name string) (bool, error) {
 	node, err := s.client.GetNode(s.ctx, name)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if !node.Raw.Idle {
 		s.logger.Debugf("can't remove current node %s, node is in use", name)
 
-		return nil
+		return false, nil
 	}
 
 	if s.opt.DryRun {
-		return nil
+		return true, nil
 	}
 
 	ok, err := s.client.DeleteNode(s.ctx, name)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if !ok {
-		return errors.New("can't delete node from jenkins cluster")
+		return false, errors.New("can't delete node from jenkins cluster")
 	}
 
 	instances, err := s.backend.Instances()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if ins, ok := instances[name]; ok {
 		if err := s.backend.Terminate(backend.NewInstances().Add(ins)); err != nil {
-			return err
+			return false, err
 		}
 
-		return nil
+		s.lastScaleDown = time.Now()
+
+		s.logger.Infof("node %s was removed from cluster", name)
+
+		return true, nil
 	}
 
-	return fmt.Errorf("can't terminate instance %s is missing", name)
+	return false, fmt.Errorf("can't terminate instance %s is missing", name)
 }
 
 // GC will look for instance that not in jenkins list of nodes aka (zombie) and will try to remove it.
