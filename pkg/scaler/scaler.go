@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/adhocore/gronx"
-	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -18,20 +17,14 @@ import (
 
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
 	"github.com/bringg/jenkins-autoscaler/pkg/config"
+	"github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 )
 
 type (
-	Jenkinser interface {
-		GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error)
-		DeleteNode(ctx context.Context, name string) (bool, error)
-		GetAllNodes(ctx context.Context) (Nodes, error)
-		GetNode(ctx context.Context, name string) (*gojenkins.Node, error)
-	}
-
 	Scaler struct {
 		ctx           context.Context
 		backend       backend.Backend
-		client        Jenkinser
+		client        client.Jenkinser
 		opt           *Options
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
@@ -55,12 +48,8 @@ type (
 	Options struct {
 		DryRun                                 bool        `config:"dry_run"`
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
-		JenkinsURL                             string      `config:"jenkins_url" validate:"required"`
-		JenkinsUser                            string      `config:"jenkins_user" validate:"required"`
-		JenkinsToken                           string      `config:"jenkins_token" validate:"required"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
-		NodeNumExecutors                       int64       `config:"node_num_executors"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -132,18 +121,18 @@ func NewMetrics() *Metrics {
 
 // New returns a new Scaler.
 func New(m configmap.Mapper, bk backend.Backend, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt, err := readOptions(m)
-	if err != nil {
+	opt := new(client.Options)
+	if err := config.ReadOptions(m, opt); err != nil {
 		return nil, err
 	}
 
-	return NewWithClient(m, bk, NewClient(opt), l, mtr)
+	return NewWithClient(m, bk, client.New(opt), l, mtr)
 }
 
 // NewWithClient returns a new Scaler with custom client.
-func NewWithClient(m configmap.Mapper, bk backend.Backend, client Jenkinser, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt, err := readOptions(m)
-	if err != nil {
+func NewWithClient(m configmap.Mapper, bk backend.Backend, client client.Jenkinser, l *log.Logger, mtr *Metrics) (*Scaler, error) {
+	opt := new(Options)
+	if err := config.ReadOptions(m, opt); err != nil {
 		return nil, err
 	}
 
@@ -171,6 +160,15 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	logger := s.logger
 
+	usage, err := s.client.GetCurrentUsage(ctx)
+	if err != nil {
+		logger.Errorf("failed getting current usage: %v", err)
+
+		return
+	}
+
+	logger.Debugf("current nodes usage is %d%%", usage)
+
 	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
 		logger.Error(err)
@@ -181,15 +179,6 @@ func (s *Scaler) Do(ctx context.Context) {
 	nodes = nodes.
 		ExcludeNode(s.opt.ControllerNodeName).
 		ExcludeOffline()
-
-	usage, err := s.client.GetCurrentUsage(ctx, int64(len(nodes)))
-	if err != nil {
-		logger.Errorf("failed getting current usage: %v", err)
-
-		return
-	}
-
-	logger.Debugf("current nodes usage is %d%%", usage)
 
 	if len(nodes) > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
@@ -246,14 +235,6 @@ func (s *Scaler) scaleUp(usage int64) error {
 		return err
 	}
 
-	if curSize == 0 {
-		if err := s.backend.Resize(1); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	maxSize := s.opt.MaxNodes
 	if curSize >= maxSize {
 		logger.Infof("reached maximum of %d nodes. won't scale up", maxSize)
@@ -289,7 +270,7 @@ func (s *Scaler) scaleUp(usage int64) error {
 }
 
 // scaleDown check if need to scale down nodes.
-func (s *Scaler) scaleDown(nodes Nodes) error {
+func (s *Scaler) scaleDown(nodes client.Nodes) error {
 	logger := s.logger
 	isWH := s.isWorkingHour()
 	lastScaleDown := time.Since(s.lastScaleDown)
@@ -330,7 +311,7 @@ func (s *Scaler) scaleDown(nodes Nodes) error {
 }
 
 // // scaleToMinimum check if need normalize the num of nodes to minimum count.
-func (s *Scaler) scaleToMinimum(nodes Nodes) error {
+func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
 
@@ -350,7 +331,7 @@ func (s *Scaler) scaleToMinimum(nodes Nodes) error {
 }
 
 // isMinimumNodes checking if current time is at minimum count.
-func (s *Scaler) isMinimumNodes(nodes Nodes) bool {
+func (s *Scaler) isMinimumNodes(nodes client.Nodes) bool {
 	s.logger.Debugf("number of nodes: %d", len(nodes))
 
 	isWH := s.isWorkingHour()
@@ -358,7 +339,7 @@ func (s *Scaler) isMinimumNodes(nodes Nodes) bool {
 
 	s.logger.Debugf("is working hours now: %v - cron: %s", isWH, s.opt.WorkingHoursCronExpressions)
 
-	if isWH && int64(len(nodes)) >= minNodes {
+	if isWH && int64(len(nodes)) > minNodes {
 		return true
 	}
 
@@ -508,9 +489,4 @@ func (s *Scaler) gc(ctx context.Context) error {
 
 func (o *Options) Name() string {
 	return "scaler"
-}
-
-func readOptions(m configmap.Mapper) (*Options, error) {
-	opt := new(Options)
-	return opt, config.ReadOptions(m, opt)
 }

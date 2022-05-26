@@ -1,4 +1,4 @@
-package scaler
+package client
 
 import (
 	"context"
@@ -7,6 +7,13 @@ import (
 )
 
 type (
+	Jenkinser interface {
+		GetCurrentUsage(ctx context.Context) (int64, error)
+		DeleteNode(ctx context.Context, name string) (bool, error)
+		GetAllNodes(ctx context.Context) (Nodes, error)
+		GetNode(ctx context.Context, name string) (*gojenkins.Node, error)
+	}
+
 	WrapperClient struct {
 		*gojenkins.Jenkins
 
@@ -14,10 +21,18 @@ type (
 	}
 
 	Nodes map[string]*gojenkins.Node
+
+	Options struct {
+		JenkinsURL         string `config:"jenkins_url" validate:"required"`
+		JenkinsUser        string `config:"jenkins_user" validate:"required"`
+		JenkinsToken       string `config:"jenkins_token" validate:"required"`
+		ControllerNodeName string `config:"controller_node_name"`
+		NodeNumExecutors   int64  `config:"node_num_executors"`
+	}
 )
 
-// NewClient returns a new Client.
-func NewClient(opt *Options) *WrapperClient {
+// New returns a new Client.
+func New(opt *Options) *WrapperClient {
 	return &WrapperClient{
 		opt: opt,
 		Jenkins: gojenkins.CreateJenkins(
@@ -30,15 +45,38 @@ func NewClient(opt *Options) *WrapperClient {
 }
 
 // GetCurrentUsage return the current usage of jenkins nodes.
-func (c *WrapperClient) GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error) {
+func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 	computers, err := c.computers(ctx)
 	if err != nil {
 		return 0, err
 	}
 
+	nodes := c.getNodes(computers).
+		ExcludeNode(c.opt.ControllerNodeName).
+		ExcludeOffline()
+
+	numNodes := int64(len(nodes))
+
 	currentUsage := int64((float64(computers.BusyExecutors) / float64(numNodes*c.opt.NodeNumExecutors)) * 100)
 
+	if currentUsage < 0 {
+		return 0, nil
+	}
+
+	if currentUsage > 100 {
+		return 100, nil
+	}
+
 	return currentUsage, nil
+}
+
+func (c *WrapperClient) getNodes(computers *gojenkins.Computers) Nodes {
+	nodes := make(Nodes, len(computers.Computers))
+	for _, node := range computers.Computers {
+		nodes[node.DisplayName] = &gojenkins.Node{Jenkins: c.Jenkins, Raw: node, Base: "/computer/" + node.DisplayName}
+	}
+
+	return nodes
 }
 
 func (c *WrapperClient) GetAllNodes(ctx context.Context) (Nodes, error) {
@@ -47,12 +85,7 @@ func (c *WrapperClient) GetAllNodes(ctx context.Context) (Nodes, error) {
 		return nil, err
 	}
 
-	nodes := make(Nodes, len(computers.Computers))
-	for _, node := range computers.Computers {
-		nodes[node.DisplayName] = &gojenkins.Node{Jenkins: c.Jenkins, Raw: node, Base: "/computer/" + node.DisplayName}
-	}
-
-	return nodes, nil
+	return c.getNodes(computers), nil
 }
 
 func (n Nodes) IsExist(name string) (*gojenkins.Node, bool) {
@@ -102,4 +135,8 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}
 
 	return computers, nil
+}
+
+func (o *Options) Name() string {
+	return "jenkins client"
 }

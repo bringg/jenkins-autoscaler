@@ -7,6 +7,7 @@ import (
 
 	"github.com/bndr/gojenkins"
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
+	"github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 )
@@ -42,8 +43,8 @@ func mergeFakeTypes[M ~map[K]V, K string, V any](dst, src M) M {
 	return dst
 }
 
-func makeFakeNodes(size int, opts ...NodeOption) Nodes {
-	nodes := make(Nodes, size)
+func MakeFakeNodes(size int, opts ...NodeOption) client.Nodes {
+	nodes := make(client.Nodes, size)
 	for i := 0; i < size; i++ {
 		name := fmt.Sprintf("%d", i)
 
@@ -62,7 +63,7 @@ func makeFakeNodes(size int, opts ...NodeOption) Nodes {
 	return nodes
 }
 
-func makeFakeInstances(size int) backend.Instances {
+func MakeFakeInstances(size int) backend.Instances {
 	ins := backend.NewInstances()
 	for i := 0; i < size; i++ {
 		name := fmt.Sprintf("%d", i)
@@ -73,7 +74,23 @@ func makeFakeInstances(size int) backend.Instances {
 	return ins
 }
 
-func TestProviderPrivate(t *testing.T) {
+func MergeFakeTypes[M ~map[K]V, K string, V any](dst, src M) M {
+	i := len(dst) - 1
+	for _, v := range src {
+		i++
+		dst[K(fmt.Sprintf("%d", i))] = v
+	}
+
+	return dst
+}
+
+func WithOffline() NodeOption {
+	return func(n *gojenkins.Node) {
+		n.Raw.Offline = true
+	}
+}
+
+func TestProvider(t *testing.T) {
 	o.RegisterFailHandler(g.Fail)
-	g.RunSpecs(t, "Provider Private Suite")
+	g.RunSpecs(t, "Provider Suite")
 }
