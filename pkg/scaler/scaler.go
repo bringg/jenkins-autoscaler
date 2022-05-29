@@ -250,6 +250,8 @@ func (s *Scaler) scaleUp(usage int64) error {
 	}
 
 	if newSize == curSize {
+		logger.Debugf("new target size: %d = %d is the same as current, skipping the resize", newSize, curSize)
+
 		return nil
 	}
 

@@ -2,6 +2,7 @@ package scaler
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -9,11 +10,14 @@ import (
 	"github.com/golang/mock/gomock"
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
+	"github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 	jclient "github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 	mock_backend "github.com/bringg/jenkins-autoscaler/pkg/testing/mocks/backend"
 	mock_client "github.com/bringg/jenkins-autoscaler/pkg/testing/mocks/scaler"
@@ -241,11 +245,248 @@ var _ = g.Describe("Scaler", func() {
 	})
 
 	g.Describe("Private Functions", func() {
-		logger, _ := test.NewNullLogger()
-		logger.SetOutput(g.GinkgoWriter)
-		logger.SetLevel(logrus.DebugLevel)
+		g.Describe("scaleDown", func() {
+			var sclr *Scaler
+			var logger *logrus.Logger
+			var buffer *gbytes.Buffer
+			var mockController *gomock.Controller
+
+			g.BeforeEach(func() {
+				mockController = gomock.NewController(g.GinkgoT())
+				logger, _ = test.NewNullLogger()
+				buffer = gbytes.NewBuffer()
+
+				gw := g.GinkgoWriter
+				gw.TeeTo(buffer)
+
+				logger.SetOutput(gw)
+				logger.SetLevel(logrus.DebugLevel)
+
+				sclr = &Scaler{
+					opt: &Options{
+						ScaleDownGracePeriod:                   fs.Duration(time.Minute * 1),
+						ScaleDownGracePeriodDuringWorkingHours: fs.Duration(time.Minute * 1),
+						WorkingHoursCronExpressions:            "* * * * *",
+					},
+					schedule: gronx.New(),
+					logger:   logrus.NewEntry(logger),
+				}
+			})
+
+			g.It("no idle node was found log", func() {
+				o.Expect(sclr.scaleDown(make(client.Nodes, 0))).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
+			})
+
+			g.It("still in grace period during working hours log", func() {
+				sclr.lastScaleDown = time.Now()
+
+				o.Expect(sclr.scaleDown(make(client.Nodes, 0))).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("still in grace period during working hours. won't scale down"))
+			})
+
+			g.It("still in grace period outside working hours log", func() {
+				sclr.lastScaleDown = time.Now()
+				sclr.opt.WorkingHoursCronExpressions = "@yearly"
+
+				o.Expect(sclr.scaleDown(make(client.Nodes, 0))).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("still in grace period outside working hours. won't scale down"))
+			})
+
+			g.It("removeNode: failed destroying, node is missing log", func() {
+				client := mock_client.NewMockJenkinser(mockController)
+				nodes := MakeFakeNodes(3)
+
+				sclr.client = client
+
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					return nil, errors.New("No node found")
+				}).Times(3)
+
+				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("failed destroying .* with error No node found. continue to next node"))
+				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
+			})
+
+			g.It("removeNode: failed destroying, can't delete node from jenkins cluster log", func() {
+				client := mock_client.NewMockJenkinser(mockController)
+				nodes := MakeFakeNodes(3)
+
+				sclr.client = client
+
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					return nodes[name], nil
+				}).Times(3)
+
+				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(false, nil).Times(3)
+
+				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("failed destroying .* with error can't delete node from jenkins cluster. continue to next node"))
+				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
+			})
+
+			g.It("removeNode: failed destroying, can't terminate instance is missing log", func() {
+				client := mock_client.NewMockJenkinser(mockController)
+				bk := mock_backend.NewMockBackend(mockController)
+				nodes := MakeFakeNodes(3)
+
+				sclr.client = client
+				sclr.backend = bk
+
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					return nodes[name], nil
+				}).Times(3)
+
+				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
+
+				bk.EXPECT().Instances().Return(MakeFakeInstances(0), nil).Times(3)
+
+				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("failed destroying .* with error can't terminate instance .* is missing. continue to next node"))
+				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
+			})
+
+			g.It("removeNode: can't remove current node, node is in use log", func() {
+				client := mock_client.NewMockJenkinser(mockController)
+				nodes := MakeFakeNodes(3, WithoutIdle())
+
+				sclr.client = client
+
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					return nodes[name], nil
+				}).Times(3)
+
+				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("can't remove current node .*, node is in use"))
+				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
+			})
+
+			g.It("removeNode: successfully remove first node log", func() {
+				client := mock_client.NewMockJenkinser(mockController)
+				bk := mock_backend.NewMockBackend(mockController)
+				nodes := MakeFakeNodes(3)
+
+				sclr.client = client
+				sclr.backend = bk
+
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					return nodes[name], nil
+				}).Times(1)
+
+				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+
+				bk.EXPECT().Instances().Return(MakeFakeInstances(3), nil).Times(1)
+
+				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
+					o.Expect(ins).To(o.HaveLen(1))
+
+					return nil
+				}).Times(1)
+
+				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("node .* was removed from cluster"))
+				o.Expect(buffer).ShouldNot((gbytes.Say("no idle node was found")))
+			})
+		})
+
+		g.Describe("scaleUp", func() {
+			var sclr *Scaler
+			var logger *logrus.Logger
+			var buffer *gbytes.Buffer
+			var mockController *gomock.Controller
+
+			g.BeforeEach(func() {
+				mockController = gomock.NewController(g.GinkgoT())
+				logger, _ = test.NewNullLogger()
+				buffer = gbytes.NewBuffer()
+
+				gw := g.GinkgoWriter
+				gw.TeeTo(buffer)
+
+				logger.SetOutput(gw)
+				logger.SetLevel(logrus.DebugLevel)
+
+				sclr = &Scaler{
+					opt: &Options{
+						ScaleUpGracePeriod: fs.Duration(time.Minute * 1),
+					},
+					logger: logrus.NewEntry(logger),
+				}
+			})
+
+			g.It("grace period log", func() {
+				// set scaleeUp to get log message
+				sclr.lastScaleUp = time.Now()
+
+				o.Expect(sclr.scaleUp(0)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("still in grace period. won't scale up"))
+			})
+
+			g.It("reached maximum nodes log", func() {
+				bk := mock_backend.NewMockBackend(mockController)
+
+				sclr.backend = bk
+				sclr.opt.MaxNodes = 3
+
+				bk.EXPECT().CurrentSize().Return(int64(3), nil).Times(1)
+
+				o.Expect(sclr.scaleUp(0)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("reached maximum of %d nodes. won't scale up", sclr.opt.MaxNodes))
+			})
+
+			g.It("skipping resize cause new size is the same as current log", func() {
+				bk := mock_backend.NewMockBackend(mockController)
+
+				sclr.backend = bk
+				sclr.opt.MaxNodes = 12
+				sclr.opt.ScaleUpThreshold = 70
+
+				bk.EXPECT().CurrentSize().Return(int64(9), nil).Times(1)
+
+				o.Expect(sclr.scaleUp(70)).To(o.Not(o.HaveOccurred()))
+				o.Expect(buffer).To(gbytes.Say("new target size: 9 = 9 is the same as current, skipping the resize"))
+			})
+
+			g.It("more then maximum nodes log", func() {
+				bk := mock_backend.NewMockBackend(mockController)
+
+				sclr.backend = bk
+				sclr.opt.MaxNodes = 12
+				sclr.opt.ScaleUpThreshold = 70
+
+				bk.EXPECT().CurrentSize().Return(int64(9), nil).Times(1)
+				bk.EXPECT().Resize(sclr.opt.MaxNodes).Return(nil).Times(1)
+
+				o.Expect(sclr.scaleUp(100)).To(o.Not(o.HaveOccurred()))
+				// will set the number to maximum size of 12
+				o.Expect(buffer).To(gbytes.Say("need 4 extra nodes, but can't go over the limit of %d", sclr.opt.MaxNodes))
+				o.Expect(buffer).To(gbytes.Say("will spin up 3 extra nodes"))
+				o.Expect(buffer).To(gbytes.Say("new target size: %d", sclr.opt.MaxNodes))
+			})
+
+			g.It("dry run mode log", func() {
+				bk := mock_backend.NewMockBackend(mockController)
+
+				sclr.backend = bk
+				sclr.opt.MaxNodes = 12
+				sclr.opt.ScaleUpThreshold = 70
+				sclr.opt.DryRun = true
+
+				bk.EXPECT().CurrentSize().Return(int64(9), nil).Times(1)
+
+				o.Expect(sclr.scaleUp(100)).To(o.Not(o.HaveOccurred()))
+				// will set the number to maximum size of 12
+				o.Expect(buffer).To(gbytes.Say("need 4 extra nodes, but can't go over the limit of %d", sclr.opt.MaxNodes))
+				o.Expect(buffer).To(gbytes.Say("will spin up 3 extra nodes"))
+				o.Expect(buffer).To(gbytes.Say("new target size: %d", sclr.opt.MaxNodes))
+			})
+		})
 
 		g.DescribeTable("isMinimumNodes", func(numNodes int, cronExpr string, result bool, disableWH ...bool) {
+			logger, _ := test.NewNullLogger()
+			logger.SetOutput(g.GinkgoWriter)
+			logger.SetLevel(logrus.DebugLevel)
+
 			opt := &Options{
 				MinNodesInWorkingHours:      2,
 				WorkingHoursCronExpressions: cronExpr,
@@ -256,7 +497,7 @@ var _ = g.Describe("Scaler", func() {
 			}
 
 			scal := Scaler{
-				logger:   logger.WithField("test", "private"),
+				logger:   logrus.NewEntry(logger),
 				opt:      opt,
 				schedule: gronx.New(),
 			}

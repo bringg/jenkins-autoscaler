@@ -90,6 +90,12 @@ func WithOffline() NodeOption {
 	}
 }
 
+func WithoutIdle() NodeOption {
+	return func(n *gojenkins.Node) {
+		n.Raw.Idle = false
+	}
+}
+
 func TestProvider(t *testing.T) {
 	o.RegisterFailHandler(g.Fail)
 	g.RunSpecs(t, "Provider Suite")
