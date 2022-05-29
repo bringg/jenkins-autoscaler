@@ -12,8 +12,9 @@ FROM alpine:3.15
 LABEL maintainer "Bringg DevOps <devops@bringg.com>"
 
 ENV JAS_CONFIG=/dev/null
+ENV TZ=Asia/Jerusalem
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /go/bin/jas /usr/local/bin
 
