@@ -28,7 +28,7 @@ var _ = g.Describe("Scaler", func() {
 		var scal *Scaler
 		var ctx context.Context
 		var err error
-		var client *mock_client.MockJenkinser
+		var client *mock_client.MockJenkinsAccessor
 		var bk *mock_backend.MockBackend
 		var logger *logrus.Logger
 		var cfg configmap.Simple
@@ -40,7 +40,7 @@ var _ = g.Describe("Scaler", func() {
 		g.BeforeEach(func() {
 			mockController, ctx = gomock.WithContext(context.Background(), g.GinkgoT())
 
-			client = mock_client.NewMockJenkinser(mockController)
+			client = mock_client.NewMockJenkinsAccessor(mockController)
 			bk = mock_backend.NewMockBackend(mockController)
 			bk.EXPECT().Name().MinTimes(1)
 
@@ -63,8 +63,9 @@ var _ = g.Describe("Scaler", func() {
 			logger.SetOutput(g.GinkgoWriter)
 			logger.SetLevel(logrus.DebugLevel)
 
-			scal, err = NewWithClient(cfg, bk, client, logger, metrics)
+			scal, err = New(cfg, bk, logger, metrics)
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
+			scal.client = client
 		})
 
 		g.AfterEach(func() {
@@ -110,8 +111,10 @@ var _ = g.Describe("Scaler", func() {
 				g.It("run provider with 1 node, not in working hours, with usage over threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
 
-					scal, err = NewWithClient(cfg, bk, client, logger, metrics)
+					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+					scal.client = client
 
 					// 80% usage, and default scale up threshold is 70%
 					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(80), nil).Times(1)
@@ -203,8 +206,10 @@ var _ = g.Describe("Scaler", func() {
 				g.It("run provider with 1 node, not in working hours, with usage under threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
 
-					scal, err = NewWithClient(cfg, bk, client, logger, metrics)
+					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+					scal.client = client
 
 					// 45% usage and default scale up threshold is 70%
 					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(45), nil).Times(1)
@@ -217,8 +222,10 @@ var _ = g.Describe("Scaler", func() {
 				g.It("run provider with 0 nodes, not in working hours", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
 
-					scal, err = NewWithClient(cfg, bk, client, logger, metrics)
+					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+					scal.client = client
 
 					// no usage, cluster is empty of jobs, starting the day
 					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(0), nil).Times(1)
@@ -294,7 +301,7 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("removeNode: failed destroying, node is missing log", func() {
-				client := mock_client.NewMockJenkinser(mockController)
+				client := mock_client.NewMockJenkinsAccessor(mockController)
 				nodes := MakeFakeNodes(3)
 
 				sclr.client = client
@@ -309,7 +316,7 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("removeNode: failed destroying, can't delete node from jenkins cluster log", func() {
-				client := mock_client.NewMockJenkinser(mockController)
+				client := mock_client.NewMockJenkinsAccessor(mockController)
 				nodes := MakeFakeNodes(3)
 
 				sclr.client = client
@@ -326,7 +333,7 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("removeNode: failed destroying, can't terminate instance is missing log", func() {
-				client := mock_client.NewMockJenkinser(mockController)
+				client := mock_client.NewMockJenkinsAccessor(mockController)
 				bk := mock_backend.NewMockBackend(mockController)
 				nodes := MakeFakeNodes(3)
 
@@ -347,7 +354,7 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("removeNode: can't remove current node, node is in use log", func() {
-				client := mock_client.NewMockJenkinser(mockController)
+				client := mock_client.NewMockJenkinsAccessor(mockController)
 				nodes := MakeFakeNodes(3, WithoutIdle())
 
 				sclr.client = client
@@ -357,12 +364,12 @@ var _ = g.Describe("Scaler", func() {
 				}).Times(3)
 
 				o.Expect(sclr.scaleDown(nodes)).To(o.Not(o.HaveOccurred()))
-				o.Expect(buffer).To(gbytes.Say("can't remove current node .*, node is in use"))
+				o.Expect(buffer).To(gbytes.Say("node name .*: can't remove current node, node is in use"))
 				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
 			})
 
 			g.It("removeNode: successfully remove first node log", func() {
-				client := mock_client.NewMockJenkinser(mockController)
+				client := mock_client.NewMockJenkinsAccessor(mockController)
 				bk := mock_backend.NewMockBackend(mockController)
 				nodes := MakeFakeNodes(3)
 

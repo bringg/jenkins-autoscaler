@@ -2,12 +2,14 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/bndr/gojenkins"
 )
 
 type (
-	Jenkinser interface {
+	JenkinsAccessor interface {
 		GetCurrentUsage(ctx context.Context) (int64, error)
 		DeleteNode(ctx context.Context, name string) (bool, error)
 		GetAllNodes(ctx context.Context) (Nodes, error)
@@ -129,9 +131,13 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 		"depth": "1",
 	}
 
-	_, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
+	res, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
 	if err != nil {
 		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("response status %d is not 200", res.StatusCode)
 	}
 
 	return computers, nil

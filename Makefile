@@ -31,5 +31,5 @@ generate_mocks:
 	@rm -rf ./pkg/testing/mocks
 	@mkdir -p ./pkg/testing/mocks
 	@mockgen -source=./pkg/dispatcher/dispatcher.go -destination=$(mocks)/dispatcher/scaler_mock.go Scalerer
-	@mockgen -source=./pkg/scaler/client/client.go -destination=$(mocks)/scaler/client_mock.go Jenkinser
+	@mockgen -source=./pkg/scaler/client/client.go -destination=$(mocks)/scaler/client_mock.go JenkinsAccessor
 	@mockgen -source=./pkg/backend/registry.go -destination=$(mocks)/backend/backend_mock.go Backend Instance

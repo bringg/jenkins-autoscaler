@@ -20,11 +20,13 @@ import (
 	"github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 )
 
+var ErrNodeInUse = errors.New("can't remove current node, node is in use")
+
 type (
 	Scaler struct {
 		ctx           context.Context
 		backend       backend.Backend
-		client        client.Jenkinser
+		client        client.JenkinsAccessor
 		opt           *Options
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
@@ -121,18 +123,13 @@ func NewMetrics() *Metrics {
 
 // New returns a new Scaler.
 func New(m configmap.Mapper, bk backend.Backend, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt := new(client.Options)
+	opt := new(Options)
 	if err := config.ReadOptions(m, opt); err != nil {
 		return nil, err
 	}
 
-	return NewWithClient(m, bk, client.New(opt), l, mtr)
-}
-
-// NewWithClient returns a new Scaler with custom client.
-func NewWithClient(m configmap.Mapper, bk backend.Backend, client client.Jenkinser, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt := new(Options)
-	if err := config.ReadOptions(m, opt); err != nil {
+	clientOpt := new(client.Options)
+	if err := config.ReadOptions(m, clientOpt); err != nil {
 		return nil, err
 	}
 
@@ -144,7 +141,7 @@ func NewWithClient(m configmap.Mapper, bk backend.Backend, client client.Jenkins
 		backend:  bk,
 		opt:      opt,
 		metrics:  mtr,
-		client:   client,
+		client:   client.New(clientOpt),
 		schedule: gronx.New(),
 		logger: log.NewEntry(l).WithFields(log.Fields{
 			"component": "scaler",
@@ -162,7 +159,7 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	usage, err := s.client.GetCurrentUsage(ctx)
 	if err != nil {
-		logger.Errorf("failed getting current usage: %v", err)
+		logger.Errorf("can't get current jenkins usage: %v", err)
 
 		return
 	}
@@ -171,7 +168,7 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("can't get jenkins nodes: %v", err)
 
 		return
 	}
@@ -293,18 +290,19 @@ func (s *Scaler) scaleDown(nodes client.Nodes) error {
 
 	for _, node := range nodes {
 		name := node.GetName()
+		if err := s.removeNode(name); err != nil {
+			if errors.Is(err, ErrNodeInUse) {
+				s.logger.Debugf("node name %s: %v", name, err)
 
-		ok, err := s.removeNode(name)
-		if err != nil {
+				continue
+			}
 			// if failing during node destruction, logging error and continue to the next one
 			logger.Errorf("failed destroying %s with error %s. continue to next node", name, err.Error())
 
 			continue
 		}
 
-		if ok {
-			return nil
-		}
+		return nil
 	}
 
 	logger.Debug("no idle node was found")
@@ -316,6 +314,10 @@ func (s *Scaler) scaleDown(nodes client.Nodes) error {
 func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
+
+	if s.opt.DryRun {
+		return nil
+	}
 
 	if isWH && int64(len(nodes)) < minNodes {
 		s.logger.Infof("under minimum of %d nodes during working hours. will adjust to the minimum", minNodes)
@@ -369,49 +371,47 @@ func (s *Scaler) isWorkingHour() bool {
 }
 
 // removeNode remove the given node name from jenkins and from the cloud.
-func (s *Scaler) removeNode(name string) (bool, error) {
+func (s *Scaler) removeNode(name string) error {
 	node, err := s.client.GetNode(s.ctx, name)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if !node.Raw.Idle {
-		s.logger.Debugf("can't remove current node %s, node is in use", name)
-
-		return false, nil
+		return ErrNodeInUse
 	}
 
 	if s.opt.DryRun {
-		return true, nil
+		return nil
 	}
 
 	ok, err := s.client.DeleteNode(s.ctx, name)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if !ok {
-		return false, errors.New("can't delete node from jenkins cluster")
+		return errors.New("can't delete node from jenkins cluster")
 	}
 
 	instances, err := s.backend.Instances()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if ins, ok := instances[name]; ok {
 		if err := s.backend.Terminate(backend.NewInstances().Add(ins)); err != nil {
-			return false, err
+			return err
 		}
 
 		s.lastScaleDown = time.Now()
 
 		s.logger.Infof("node %s was removed from cluster", name)
 
-		return true, nil
+		return nil
 	}
 
-	return false, fmt.Errorf("can't terminate instance %s is missing", name)
+	return fmt.Errorf("can't terminate instance %s is missing", name)
 }
 
 // GC will look for instance that not in jenkins list of nodes aka (zombie) and will try to remove it.
