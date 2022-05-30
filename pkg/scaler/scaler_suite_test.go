@@ -33,16 +33,6 @@ func (i fakeInstance) LaunchTime() *time.Time {
 	return i.launchTime
 }
 
-func mergeFakeTypes[M ~map[K]V, K string, V any](dst, src M) M {
-	i := len(dst) - 1
-	for _, v := range src {
-		i++
-		dst[K(fmt.Sprintf("%d", i))] = v
-	}
-
-	return dst
-}
-
 func MakeFakeNodes(size int, opts ...NodeOption) client.Nodes {
 	nodes := make(client.Nodes, size)
 	for i := 0; i < size; i++ {
