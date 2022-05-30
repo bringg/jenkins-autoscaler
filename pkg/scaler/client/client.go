@@ -57,17 +57,7 @@ func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 		ExcludeNode(c.opt.ControllerNodeName).
 		ExcludeOffline()
 
-	numNodes := int64(len(nodes))
-
-	currentUsage := int64((float64(computers.BusyExecutors) / float64(numNodes*c.opt.NodeNumExecutors)) * 100)
-
-	if currentUsage < 0 {
-		return 0, nil
-	}
-
-	if currentUsage > 100 {
-		return 100, nil
-	}
+	currentUsage := int64((float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100)
 
 	return currentUsage, nil
 }
@@ -88,6 +78,10 @@ func (c *WrapperClient) GetAllNodes(ctx context.Context) (Nodes, error) {
 	}
 
 	return c.getNodes(computers), nil
+}
+
+func (n Nodes) Len() int64 {
+	return int64(len(n))
 }
 
 func (n Nodes) IsExist(name string) (*gojenkins.Node, bool) {

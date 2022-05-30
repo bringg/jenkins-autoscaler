@@ -112,6 +112,11 @@ func (i Instances) Itr(fn func(Instance) bool) Instances {
 	return i
 }
 
+// Len of instances
+func (i Instances) Len() int64 {
+	return int64(len(i))
+}
+
 // NewInstances create new map of instances
 func NewInstances() Instances {
 	return make(Instances)

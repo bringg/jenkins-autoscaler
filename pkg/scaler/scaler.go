@@ -177,7 +177,7 @@ func (s *Scaler) Do(ctx context.Context) {
 		ExcludeNode(s.opt.ControllerNodeName).
 		ExcludeOffline()
 
-	if len(nodes) > 0 && usage > s.opt.ScaleUpThreshold {
+	if nodes.Len() > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
 
 		s.metrics.numScaleUps.WithLabelValues(s.backend.Name()).Inc()
@@ -319,13 +319,13 @@ func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 		return nil
 	}
 
-	if isWH && int64(len(nodes)) < minNodes {
+	if isWH && nodes.Len() < minNodes {
 		s.logger.Infof("under minimum of %d nodes during working hours. will adjust to the minimum", minNodes)
 
 		return s.backend.Resize(minNodes)
 	}
 
-	if len(nodes) < 1 {
+	if nodes.Len() < 1 {
 		s.logger.Info("not a single node off work hours. will adjust to one")
 
 		return s.backend.Resize(1)
@@ -336,18 +336,18 @@ func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 
 // isMinimumNodes checking if current time is at minimum count.
 func (s *Scaler) isMinimumNodes(nodes client.Nodes) bool {
-	s.logger.Debugf("number of nodes: %d", len(nodes))
+	s.logger.Debugf("number of nodes: %d", nodes.Len())
 
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
 
 	s.logger.Debugf("is working hours now: %v - cron: %s", isWH, s.opt.WorkingHoursCronExpressions)
 
-	if isWH && int64(len(nodes)) > minNodes {
+	if isWH && nodes.Len() > minNodes {
 		return true
 	}
 
-	if !isWH && len(nodes) > 1 {
+	if !isWH && nodes.Len() > 1 {
 		return true
 	}
 
@@ -471,7 +471,7 @@ func (s *Scaler) gc(ctx context.Context) error {
 		ins.Add(instance)
 	}
 
-	if len(ins) > 0 && !s.opt.DryRun {
+	if ins.Len() > 0 && !s.opt.DryRun {
 		// try to remove it from jenkins
 		ins.Itr(func(i backend.Instance) bool {
 			if _, err := s.client.DeleteNode(ctx, i.Name()); err != nil {
