@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 
 	"github.com/bndr/gojenkins"
 )
@@ -131,7 +132,9 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("response status %d is not 200", res.StatusCode)
+		body, _ := httputil.DumpResponse(res, true)
+
+		return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 	}
 
 	return computers, nil
