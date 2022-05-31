@@ -13,7 +13,7 @@ LABEL maintainer "Bringg DevOps <devops@bringg.com>"
 
 ENV JAS_CONFIG=/dev/null
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /go/bin/jas /usr/local/bin
 

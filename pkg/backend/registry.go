@@ -101,6 +101,22 @@ func (i Instances) Add(instance Instance) Instances {
 	return i
 }
 
+// Iterate over the instances
+func (i Instances) Itr(fn func(Instance) bool) Instances {
+	for _, ins := range i {
+		if ok := fn(ins); ok {
+			break
+		}
+	}
+
+	return i
+}
+
+// Len of instances
+func (i Instances) Len() int64 {
+	return int64(len(i))
+}
+
 // NewInstances create new map of instances
 func NewInstances() Instances {
 	return make(Instances)

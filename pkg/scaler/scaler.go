@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/adhocore/gronx"
-	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -18,20 +17,16 @@ import (
 
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
 	"github.com/bringg/jenkins-autoscaler/pkg/config"
+	"github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 )
 
-type (
-	Jenkinser interface {
-		GetCurrentUsage(ctx context.Context, numNodes int64) (int64, error)
-		DeleteNode(ctx context.Context, name string) (bool, error)
-		GetAllNodes(ctx context.Context) (Nodes, error)
-		GetNode(ctx context.Context, name string) (*gojenkins.Node, error)
-	}
+var ErrNodeInUse = errors.New("can't remove current node, node is in use")
 
+type (
 	Scaler struct {
 		ctx           context.Context
 		backend       backend.Backend
-		client        Jenkinser
+		client        client.JenkinsAccessor
 		opt           *Options
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
@@ -55,12 +50,8 @@ type (
 	Options struct {
 		DryRun                                 bool        `config:"dry_run"`
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
-		JenkinsURL                             string      `config:"jenkins_url" validate:"required"`
-		JenkinsUser                            string      `config:"jenkins_user" validate:"required"`
-		JenkinsToken                           string      `config:"jenkins_token" validate:"required"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
-		NodeNumExecutors                       int64       `config:"node_num_executors"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -132,18 +123,13 @@ func NewMetrics() *Metrics {
 
 // New returns a new Scaler.
 func New(m configmap.Mapper, bk backend.Backend, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt, err := readOptions(m)
-	if err != nil {
+	opt := new(Options)
+	if err := config.ReadOptions(m, opt); err != nil {
 		return nil, err
 	}
 
-	return NewWithClient(m, bk, NewClient(opt), l, mtr)
-}
-
-// NewWithClient returns a new Scaler with custom client.
-func NewWithClient(m configmap.Mapper, bk backend.Backend, client Jenkinser, l *log.Logger, mtr *Metrics) (*Scaler, error) {
-	opt, err := readOptions(m)
-	if err != nil {
+	clientOpt := new(client.Options)
+	if err := config.ReadOptions(m, clientOpt); err != nil {
 		return nil, err
 	}
 
@@ -155,7 +141,7 @@ func NewWithClient(m configmap.Mapper, bk backend.Backend, client Jenkinser, l *
 		backend:  bk,
 		opt:      opt,
 		metrics:  mtr,
-		client:   client,
+		client:   client.New(clientOpt),
 		schedule: gronx.New(),
 		logger: log.NewEntry(l).WithFields(log.Fields{
 			"component": "scaler",
@@ -171,9 +157,18 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	logger := s.logger
 
+	usage, err := s.client.GetCurrentUsage(ctx)
+	if err != nil {
+		logger.Errorf("can't get current jenkins usage: %v", err)
+
+		return
+	}
+
+	logger.Debugf("current nodes usage is %d%%", usage)
+
 	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
-		logger.Error(err)
+		logger.Errorf("can't get jenkins nodes: %v", err)
 
 		return
 	}
@@ -182,17 +177,7 @@ func (s *Scaler) Do(ctx context.Context) {
 		ExcludeNode(s.opt.ControllerNodeName).
 		ExcludeOffline()
 
-	usage, err := s.client.GetCurrentUsage(ctx, int64(len(nodes)))
-	if err != nil {
-		logger.Errorf("failed getting current usage: %v", err)
-
-		return
-	}
-
-	logger.Debugf("current nodes usage is %d%%", usage)
-
-	isMin := s.isMinimumNodes(nodes)
-	if isMin && usage > s.opt.ScaleUpThreshold {
+	if nodes.Len() > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
 
 		s.metrics.numScaleUps.WithLabelValues(s.backend.Name()).Inc()
@@ -206,6 +191,7 @@ func (s *Scaler) Do(ctx context.Context) {
 		return
 	}
 
+	isMin := s.isMinimumNodes(nodes)
 	if isMin && usage < s.opt.ScaleDownThreshold {
 		logger.Infof("current usage is %d%% < %d%% then specified threshold, will try to scale down", usage, s.opt.ScaleDownThreshold)
 
@@ -261,6 +247,8 @@ func (s *Scaler) scaleUp(usage int64) error {
 	}
 
 	if newSize == curSize {
+		logger.Debugf("new target size: %d = %d is the same as current, skipping the resize", newSize, curSize)
+
 		return nil
 	}
 
@@ -280,35 +268,39 @@ func (s *Scaler) scaleUp(usage int64) error {
 	return nil
 }
 
-// scaleUp check if need to scale down nodes.
-func (s *Scaler) scaleDown(nodes Nodes) error {
+// scaleDown check if need to scale down nodes.
+func (s *Scaler) scaleDown(nodes client.Nodes) error {
 	logger := s.logger
 	isWH := s.isWorkingHour()
-	if isWH && time.Since(s.lastScaleDown) < time.Duration(s.opt.ScaleDownGracePeriodDuringWorkingHours) {
-		logger.Info("still in grace period during working hours. won't scale down")
+	lastScaleDown := time.Since(s.lastScaleDown)
+	scaleDownWHPeriod := time.Duration(s.opt.ScaleDownGracePeriodDuringWorkingHours)
+
+	if isWH && lastScaleDown < scaleDownWHPeriod {
+		logger.Infof("still in grace period during working hours. won't scale down: %v < %v", lastScaleDown, scaleDownWHPeriod)
 
 		return nil
 	}
 
-	if !isWH && time.Since(s.lastScaleDown) < time.Duration(s.opt.ScaleDownGracePeriod) {
-		logger.Info("still in grace period outside working hours. won't scale down")
+	scaleDownGracePeriod := time.Duration(s.opt.ScaleDownGracePeriod)
+	if !isWH && lastScaleDown < scaleDownGracePeriod {
+		logger.Infof("still in grace period outside working hours. won't scale down: %v < %v", lastScaleDown, scaleDownGracePeriod)
 
 		return nil
 	}
 
 	for _, node := range nodes {
 		name := node.GetName()
+		if err := s.removeNode(name); err != nil {
+			if errors.Is(err, ErrNodeInUse) {
+				s.logger.Debugf("node name %s: %v", name, err)
 
-		if err := s.removeNode(name); nil != err {
+				continue
+			}
 			// if failing during node destruction, logging error and continue to the next one
 			logger.Errorf("failed destroying %s with error %s. continue to next node", name, err.Error())
 
 			continue
 		}
-
-		logger.Infof("node %s was removed from cluster", name)
-
-		s.lastScaleDown = time.Now()
 
 		return nil
 	}
@@ -319,17 +311,21 @@ func (s *Scaler) scaleDown(nodes Nodes) error {
 }
 
 // // scaleToMinimum check if need normalize the num of nodes to minimum count.
-func (s *Scaler) scaleToMinimum(nodes Nodes) error {
+func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
 
-	if isWH && int64(len(nodes)) < minNodes {
+	if s.opt.DryRun {
+		return nil
+	}
+
+	if isWH && nodes.Len() < minNodes {
 		s.logger.Infof("under minimum of %d nodes during working hours. will adjust to the minimum", minNodes)
 
 		return s.backend.Resize(minNodes)
 	}
 
-	if len(nodes) < 1 {
+	if nodes.Len() < 1 {
 		s.logger.Info("not a single node off work hours. will adjust to one")
 
 		return s.backend.Resize(1)
@@ -339,17 +335,19 @@ func (s *Scaler) scaleToMinimum(nodes Nodes) error {
 }
 
 // isMinimumNodes checking if current time is at minimum count.
-func (s *Scaler) isMinimumNodes(nodes Nodes) bool {
-	s.logger.Debugf("number of nodes: %d", len(nodes))
+func (s *Scaler) isMinimumNodes(nodes client.Nodes) bool {
+	s.logger.Debugf("number of nodes: %d", nodes.Len())
 
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
 
-	if isWH && int64(len(nodes)) > minNodes {
+	s.logger.Debugf("is working hours now: %v - cron: %s", isWH, s.opt.WorkingHoursCronExpressions)
+
+	if isWH && nodes.Len() > minNodes {
 		return true
 	}
 
-	if !isWH && len(nodes) > 1 {
+	if !isWH && nodes.Len() > 1 {
 		return true
 	}
 
@@ -380,9 +378,7 @@ func (s *Scaler) removeNode(name string) error {
 	}
 
 	if !node.Raw.Idle {
-		s.logger.Debugf("can't remove current node %s, node is in use", name)
-
-		return nil
+		return ErrNodeInUse
 	}
 
 	if s.opt.DryRun {
@@ -407,6 +403,10 @@ func (s *Scaler) removeNode(name string) error {
 		if err := s.backend.Terminate(backend.NewInstances().Add(ins)); err != nil {
 			return err
 		}
+
+		s.lastScaleDown = time.Now()
+
+		s.logger.Infof("node %s was removed from cluster", name)
 
 		return nil
 	}
@@ -471,7 +471,16 @@ func (s *Scaler) gc(ctx context.Context) error {
 		ins.Add(instance)
 	}
 
-	if len(ins) > 0 && !s.opt.DryRun {
+	if ins.Len() > 0 && !s.opt.DryRun {
+		// try to remove it from jenkins
+		ins.Itr(func(i backend.Instance) bool {
+			if _, err := s.client.DeleteNode(ctx, i.Name()); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+
+			return false
+		})
+
 		if err = s.backend.Terminate(ins); err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -482,9 +491,4 @@ func (s *Scaler) gc(ctx context.Context) error {
 
 func (o *Options) Name() string {
 	return "scaler"
-}
-
-func readOptions(m configmap.Mapper) (*Options, error) {
-	opt := new(Options)
-	return opt, config.ReadOptions(m, opt)
 }
