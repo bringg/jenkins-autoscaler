@@ -41,7 +41,7 @@ jobs:
       uses: docker/build-push-action@v3
       with:
         push: true
+        build-args: VERSION=${{ github.ref_name }}
         tags: |
           bringg/jenkins-autoscaler:${{ github.ref_name }}
           bringg/jenkins-autoscaler:latest
-
