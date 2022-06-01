@@ -1,7 +1,7 @@
 FROM golang:1.18-alpine as builder
 
-ARG SOURCE_BRANCH=development
-ENV VERSION=$SOURCE_BRANCH
+ARG VERSION=development
+ENV VERSION=$VERSION
 
 WORKDIR /opt/jenkins-autoscaler/
 COPY . .

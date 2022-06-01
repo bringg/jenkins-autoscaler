@@ -461,12 +461,12 @@ func (s *Scaler) gc(ctx context.Context) error {
 		// TODO: let user specify time
 		// not taking down nodes that are running less than 20 minutes
 		if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
-			logger.Infof("not taking node down since it is running only %v", instanceLunchTime)
+			logger.Infof("not taking instance %q down since it is running only %v", name, instanceLunchTime)
 
 			continue
 		}
 
-		logger.Infof("found running instance %v which is not registered in Jenkins. will try to remove it", name)
+		logger.Infof("found running instance %q which is not registered in Jenkins. will try to remove it", name)
 
 		ins.Add(instance)
 	}
