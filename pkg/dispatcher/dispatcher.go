@@ -85,9 +85,7 @@ func (d *Dispatcher) Run(ctx context.Context) {
 	d.done = make(chan struct{})
 	defer close(d.done)
 
-	d.mtx.Lock()
 	d.ctx, d.cancel = context.WithCancel(ctx)
-	d.mtx.Unlock()
 
 	d.run()
 }
@@ -108,12 +106,10 @@ func (d *Dispatcher) run() {
 
 			t.ObserveDuration()
 		case <-gcTicker.C:
-			go func() {
-				t := prometheus.NewTimer(d.metrics.gcProcessingDuration)
-				defer t.ObserveDuration()
+			t := prometheus.NewTimer(d.metrics.gcProcessingDuration)
+			d.scaler.GC(d.ctx)
 
-				d.scaler.GC(d.ctx)
-			}()
+			t.ObserveDuration()
 		case <-d.ctx.Done():
 			return
 		}
