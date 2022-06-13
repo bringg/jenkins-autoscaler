@@ -7,7 +7,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const MetricsEndpoint = "/metrics"
+const (
+	MetricsEndpoint = "/metrics"
+	HealthzEndpoint = "/healthz"
+)
 
 type (
 	Server struct {
@@ -21,6 +24,10 @@ func NewServer(addr string) *Server {
 	mux.Handle(MetricsEndpoint, promhttp.Handler())
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, MetricsEndpoint, http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc(HealthzEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status": "UP"}`))
 	})
 
 	return &Server{srv: &http.Server{Addr: addr, Handler: mux}}
