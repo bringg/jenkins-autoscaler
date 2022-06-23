@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
@@ -417,16 +418,17 @@ func (s *Scaler) removeNode(name string) error {
 // GC will look for instance that not in jenkins list of nodes aka (zombie) and will try to remove it.
 func (s *Scaler) GC(ctx context.Context) {
 	s.metrics.numGC.WithLabelValues(s.backend.Name()).Inc()
-	if err := s.gc(ctx); err != nil {
+
+	logger := s.logger.WithField("component", "gc")
+	if err := s.gc(ctx, logger); err != nil {
 		s.metrics.numFailedGC.WithLabelValues(s.backend.Name()).Inc()
 
-		s.logger.Error(err)
+		logger.Error(err)
 	}
 }
 
-func (s *Scaler) gc(ctx context.Context) error {
-	logger := s.logger
-	logger.Debug("running GC...")
+func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
+	logger.Debug("starting GC")
 
 	nodes, err := s.client.GetAllNodes(ctx)
 	if err != nil {
@@ -434,22 +436,25 @@ func (s *Scaler) gc(ctx context.Context) error {
 	}
 
 	nodes = nodes.
-		ExcludeNode(s.opt.ControllerNodeName).
-		ExcludeOffline()
+		ExcludeNode(s.opt.ControllerNodeName)
 
 	instances, err := s.backend.Instances()
 	if err != nil {
 		return err
 	}
 
+	// remove nodes and instances from backend and jenkins master
 	var errs error
 	ins := backend.NewInstances()
 	for _, instance := range instances {
-		// verify that each instance is being seen by Jenkins
 		name := instance.Name()
+
+		// verify that each instance is being seen by Jenkins
 		if node, ok := nodes.IsExist(name); ok && !node.Raw.Offline {
 			continue
 		}
+
+		logger.Infof("found running instance %s which is not registered in Jenkins. will try to remove it", name)
 
 		// lazy load of additional data about instance
 		if err = instance.Describe(); err != nil {
@@ -461,28 +466,31 @@ func (s *Scaler) gc(ctx context.Context) error {
 		// TODO: let user specify time
 		// not taking down nodes that are running less than 20 minutes
 		if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
-			logger.Infof("not taking instance %q down since it is running only %v", name, instanceLunchTime)
+			logger.Infof("not taking instance %s down since it is running only %v", name, instanceLunchTime)
 
 			continue
 		}
 
-		logger.Infof("found running instance %q which is not registered in Jenkins. will try to remove it", name)
-
 		ins.Add(instance)
 	}
 
-	if ins.Len() > 0 && !s.opt.DryRun {
-		// try to remove it from jenkins
-		ins.Itr(func(i backend.Instance) bool {
-			if _, err := s.client.DeleteNode(ctx, i.Name()); err != nil {
+	if !s.opt.DryRun {
+		// get nodes names that not exist in backend
+		_, r := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
+
+		// remove zombies nodes from jenkins master that already not exist in backend
+		for _, name := range append(r, lo.Keys(ins)...) {
+			logger.Infof("removing zombie node %s from Jenkins", name)
+
+			if _, err := s.client.DeleteNode(ctx, name); err != nil {
 				errs = multierror.Append(errs, err)
 			}
+		}
 
-			return false
-		})
-
-		if err = s.backend.Terminate(ins); err != nil {
-			errs = multierror.Append(errs, err)
+		if ins.Len() > 0 {
+			if err = s.backend.Terminate(ins); err != nil {
+				errs = multierror.Append(errs, err)
+			}
 		}
 	}
 
