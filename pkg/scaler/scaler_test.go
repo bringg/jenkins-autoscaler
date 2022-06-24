@@ -89,7 +89,7 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("clear zombies from jenkins when instnace is missing in backend", func() {
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(7), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(MergeFakeTypes(MakeFakeNodes(5), MakeFakeNodes(2, WithOffline())), nil).Times(1)
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
 				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
