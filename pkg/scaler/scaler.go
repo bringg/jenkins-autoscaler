@@ -444,7 +444,7 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	}
 
 	var errs error
-	insWithoutNodes, nodesTwodel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
+	insWithoutNodes, nodesTwoDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
 
 	insTwoDel := backend.Instances(lo.Assign(
 		// 1) instance exist, jenkins node not registered
@@ -453,31 +453,31 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 		s.findOfflineNodes(instances, nodes),
 	))
 
+	if s.opt.DryRun {
+		return errs
+	}
+
+	// delete nodes from jenkins
 	// 3) instance not exist, but jenkins node registered in offline
-	nodesTwodel = append(nodesTwodel, lo.Keys(insTwoDel)...)
+	for _, name := range append(nodesTwoDel, lo.Keys(insTwoDel)...) {
+		logger.Infof("removing node %s from Jenkins", name)
 
-	if !s.opt.DryRun {
-		// delete nodes from jenkins
-		for _, name := range nodesTwodel {
-			logger.Infof("removing node %s from Jenkins", name)
-
-			if _, err := s.client.DeleteNode(ctx, name); err != nil {
-				errs = multierror.Append(errs, err)
-			}
+		if _, err := s.client.DeleteNode(ctx, name); err != nil {
+			errs = multierror.Append(errs, err)
 		}
+	}
 
-		// delete instance from cloud backend
-		if insTwoDel.Len() > 0 {
-			if err = s.backend.Terminate(insTwoDel); err != nil {
-				errs = multierror.Append(errs, err)
-			}
+	// delete instance from cloud backend
+	if insTwoDel.Len() > 0 {
+		if err = s.backend.Terminate(insTwoDel); err != nil {
+			errs = multierror.Append(errs, err)
 		}
 	}
 
 	return errs
 }
 
-// GetMoreThenLunchTime get instances that missing in jenkins and lunchTime is more then specified duration.
+// findNotRegistredNodes get instances that missing in jenkins and lunchTime is more then specified duration.
 // TODO: let user specify time, for now default is 20 min
 func (s *Scaler) findNotRegistredNodes(instanceNames []string, instances backend.Instances, logger *log.Entry, errs error) backend.Instances {
 	ins := backend.NewInstances()
@@ -505,6 +505,7 @@ func (s *Scaler) findNotRegistredNodes(instanceNames []string, instances backend
 
 }
 
+// findOfflineNodes find all registred jenkins nodes in offline mode.
 func (s *Scaler) findOfflineNodes(instances backend.Instances, nodes client.Nodes) backend.Instances {
 	ins := backend.NewInstances()
 	instances.Itr(func(i backend.Instance) bool {
