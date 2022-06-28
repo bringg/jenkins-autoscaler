@@ -73,7 +73,7 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("GC", func() {
-			g.It("clear 2 instances not registred in jenkins", func() {
+			g.It("clear 2 instances not registered in jenkins", func() {
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
 				// provider will decrease instances to 3
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
@@ -88,7 +88,7 @@ var _ = g.Describe("Scaler", func() {
 				scal.GC(ctx)
 			})
 
-			g.It("clear zombies from jenkins when instnace is missing in backend", func() {
+			g.It("clear zombies from jenkins when instance is missing in backend", func() {
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(MergeFakeTypes(MakeFakeNodes(5), MakeFakeNodes(2, WithOffline())), nil).Times(1)
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
 				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
@@ -137,7 +137,7 @@ var _ = g.Describe("Scaler", func() {
 					scal.Do(ctx)
 				})
 
-				g.It("run provider with min nodes and havy usage, will scale out provider to 1 more", func() {
+				g.It("run provider with min nodes and heavy usage, will scale out provider to 1 more", func() {
 					// 77% usage, and default scale up threshold is 70%
 					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(77), nil).Times(1)
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(1), nil).Times(1)
@@ -527,7 +527,7 @@ var _ = g.Describe("Scaler", func() {
 			g.Entry("is 1 nodes isMinimumNodes in non working hours", 1, "@yearly", false),
 			g.Entry("is 0 nodes isMinimumNodes in non working hours", 0, "@yearly", false),
 			g.Entry("bad cron syntax", 0, "@jopka", false),
-			g.Entry("disable working hourse check", 3, "@jopka", true, true),
+			g.Entry("disable working hours check", 3, "@jopka", true, true),
 		)
 	})
 
