@@ -86,12 +86,12 @@ func setOptValues(os fs.Options) {
 }
 
 // IsExist check if instance with this name is exist
-func (i Instances) IsExist(name string) (Instance, bool) {
-	if ins, ok := i[name]; ok {
-		return ins, true
+func (i Instances) IsExist(name string) bool {
+	if _, ok := i[name]; ok {
+		return true
 	}
 
-	return nil, false
+	return false
 }
 
 // Add adds an instance to Instances map

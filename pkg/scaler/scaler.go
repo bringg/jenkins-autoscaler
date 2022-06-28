@@ -443,23 +443,17 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 		return err
 	}
 
-	var errs error
-	insWithoutNodes, nodesTwoDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
-
-	insTwoDel := backend.Instances(lo.Assign(
-		// 1) instance exist, jenkins node not registered
-		s.findNotRegistredNodes(insWithoutNodes, instances, logger, errs),
-		// 2) instance exist, jenkins node registered but in offline
-		s.findOfflineNodes(instances, nodes),
-	))
+	insToDel, errs := s.findInstancesToDelete(instances, nodes, logger)
 
 	if s.opt.DryRun {
 		return errs
 	}
 
+	// instance not exist, but jenkins node registered in offline
+	_, nodesToDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
+
 	// delete nodes from jenkins
-	// 3) instance not exist, but jenkins node registered in offline
-	for _, name := range append(nodesTwoDel, lo.Keys(insTwoDel)...) {
+	for _, name := range append(nodesToDel, lo.Keys(insToDel)...) {
 		logger.Infof("removing node %s from Jenkins", name)
 
 		if _, err := s.client.DeleteNode(ctx, name); err != nil {
@@ -468,8 +462,8 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	}
 
 	// delete instance from cloud backend
-	if insTwoDel.Len() > 0 {
-		if err = s.backend.Terminate(insTwoDel); err != nil {
+	if insToDel.Len() > 0 {
+		if err = s.backend.Terminate(insToDel); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
@@ -477,48 +471,39 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	return errs
 }
 
-// findNotRegistredNodes get instances that missing in jenkins and lunchTime is more then specified duration.
+// findInstancesToDelete get instances that missing in jenkins and lunchTime is more then specified duration.
 // TODO: let user specify time, for now default is 20 min
-func (s *Scaler) findNotRegistredNodes(instanceNames []string, instances backend.Instances, logger *log.Entry, errs error) backend.Instances {
-	ins := backend.NewInstances()
-	lo.ForEach(instanceNames, func(name string, _ int) {
-		if instance, ok := instances.IsExist(name); ok {
-			// lazy load of additional data about instance
-			if err := instance.Describe(); err != nil {
-				errs = multierror.Append(errs, err)
-
-				return
-			}
-
-			// not taking down nodes that are running less than specified duration
-			if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
-				logger.Infof("not taking instance %s down since it is running only %v", name, instanceLunchTime)
-
-				return
-			}
-
-			ins.Add(instance)
-		}
-	})
-
-	return ins
-
-}
-
-// findOfflineNodes find all registred jenkins nodes in offline mode.
-func (s *Scaler) findOfflineNodes(instances backend.Instances, nodes client.Nodes) backend.Instances {
-	ins := backend.NewInstances()
-	instances.Itr(func(i backend.Instance) bool {
-		if node, ok := nodes.IsExist(i.Name()); ok && !node.Raw.Offline {
-			return false
+func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client.Nodes, logger *log.Entry) (backend.Instances, error) {
+	var errs error
+	insToDel := backend.NewInstances()
+	for _, instance := range instances {
+		// verify that each instance is being seen by Jenkins
+		name := instance.Name()
+		if node := nodes.Find(name); node != nil && !node.Raw.Offline {
+			continue
 		}
 
-		ins.Add(i)
+		// lazy load of additional data about instance
+		if err := instance.Describe(); err != nil {
+			errs = multierror.Append(errs, err)
 
-		return false
-	})
+			continue
+		}
 
-	return ins
+		// TODO: let user specify time
+		// not taking down nodes that are running less than 20 minutes
+		if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
+			logger.Infof("not taking instance %s down since it is running only %v", name, instanceLunchTime)
+
+			continue
+		}
+
+		logger.Infof("found running instance %s which is not registered in Jenkins. will try to remove it", name)
+
+		insToDel.Add(instance)
+	}
+
+	return insToDel, errs
 }
 
 func (o *Options) Name() string {

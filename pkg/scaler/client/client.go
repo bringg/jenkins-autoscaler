@@ -85,12 +85,20 @@ func (n Nodes) Len() int64 {
 	return int64(len(n))
 }
 
-func (n Nodes) IsExist(name string) (*gojenkins.Node, bool) {
+func (n Nodes) Find(name string) *gojenkins.Node {
 	if node, ok := n[name]; ok {
-		return node, true
+		return node
 	}
 
-	return nil, false
+	return nil
+}
+
+func (n Nodes) IsExist(name string) bool {
+	if _, ok := n[name]; ok {
+		return true
+	}
+
+	return false
 }
 
 func (n Nodes) ExcludeOffline() Nodes {
