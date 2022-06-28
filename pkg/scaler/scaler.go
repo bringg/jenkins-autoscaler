@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -445,16 +446,17 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 
 	insToDel, errs := s.findInstancesToDelete(instances, nodes, logger)
 
-	if s.opt.DryRun {
-		return errs
-	}
-
 	// instance not exist, but jenkins node registered in offline
 	_, nodesToDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
 
 	// delete nodes from jenkins
-	for _, name := range append(nodesToDel, lo.Keys(insToDel)...) {
+	insToDelKeys := lo.Keys(insToDel)
+	for _, name := range append(nodesToDel, insToDelKeys...) {
 		logger.Infof("removing node %s from Jenkins", name)
+
+		if s.opt.DryRun {
+			continue
+		}
 
 		if _, err := s.client.DeleteNode(ctx, name); err != nil {
 			errs = multierror.Append(errs, err)
@@ -463,6 +465,12 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 
 	// delete instance from cloud backend
 	if insToDel.Len() > 0 {
+		logger.Infof("found running instances %s which is not registered in Jenkins. will try to remove it", strings.Join(insToDelKeys, ","))
+
+		if s.opt.DryRun {
+			return errs
+		}
+
 		if err = s.backend.Terminate(insToDel); err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -472,14 +480,13 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 }
 
 // findInstancesToDelete get instances that missing in jenkins and lunchTime is more then specified duration.
-// TODO: let user specify time, for now default is 20 min
 func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client.Nodes, logger *log.Entry) (backend.Instances, error) {
 	var errs error
 	insToDel := backend.NewInstances()
 	for _, instance := range instances {
 		// verify that each instance is being seen by Jenkins
 		name := instance.Name()
-		if node := nodes.Find(name); node != nil && !node.Raw.Offline {
+		if node, ok := nodes[name]; ok && !node.Raw.Offline {
 			continue
 		}
 
@@ -493,12 +500,10 @@ func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client
 		// TODO: let user specify time
 		// not taking down nodes that are running less than 20 minutes
 		if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
-			logger.Infof("not taking instance %s down since it is running only %v", name, instanceLunchTime)
+			logger.Infof("skipping instance %s since it is running only %v", name, instanceLunchTime)
 
 			continue
 		}
-
-		logger.Infof("found running instance %s which is not registered in Jenkins. will try to remove it", name)
 
 		insToDel.Add(instance)
 	}
