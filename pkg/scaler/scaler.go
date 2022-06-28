@@ -445,12 +445,12 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	}
 
 	insToDel, errs := s.findInstancesToDelete(instances, nodes, logger)
+	insToDelKeys := lo.Keys(insToDel)
 
 	// instance not exist, but jenkins node registered in offline
 	_, nodesToDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
 
 	// delete nodes from jenkins
-	insToDelKeys := lo.Keys(insToDel)
 	for _, name := range append(nodesToDel, insToDelKeys...) {
 		logger.Infof("removing node %s from Jenkins", name)
 
@@ -465,7 +465,7 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 
 	// delete instance from cloud backend
 	if insToDel.Len() > 0 {
-		logger.Infof("found running instances %s which is not registered in Jenkins. will try to remove it", strings.Join(insToDelKeys, ","))
+		logger.Infof("found %d running instances (%s) which are not registered in Jenkins. Will try to remove them", insToDel.Len(), strings.Join(insToDelKeys, ","))
 
 		if s.opt.DryRun {
 			return errs
