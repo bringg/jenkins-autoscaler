@@ -85,7 +85,9 @@ func (d *Dispatcher) Run(ctx context.Context) {
 	d.done = make(chan struct{})
 	defer close(d.done)
 
+	d.mtx.Lock()
 	d.ctx, d.cancel = context.WithCancel(ctx)
+	d.mtx.Unlock()
 
 	d.run()
 }

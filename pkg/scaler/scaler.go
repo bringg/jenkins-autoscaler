@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -13,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bringg/jenkins-autoscaler/pkg/backend"
@@ -417,16 +419,17 @@ func (s *Scaler) removeNode(name string) error {
 // GC will look for instance that not in jenkins list of nodes aka (zombie) and will try to remove it.
 func (s *Scaler) GC(ctx context.Context) {
 	s.metrics.numGC.WithLabelValues(s.backend.Name()).Inc()
-	if err := s.gc(ctx); err != nil {
+
+	logger := s.logger.WithField("component", "gc")
+	if err := s.gc(ctx, logger); err != nil {
 		s.metrics.numFailedGC.WithLabelValues(s.backend.Name()).Inc()
 
-		s.logger.Error(err)
+		logger.Error(err)
 	}
 }
 
-func (s *Scaler) gc(ctx context.Context) error {
-	logger := s.logger
-	logger.Debug("running GC...")
+func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
+	logger.Debug("starting GC")
 
 	nodes, err := s.client.GetAllNodes(ctx)
 	if err != nil {
@@ -434,26 +437,62 @@ func (s *Scaler) gc(ctx context.Context) error {
 	}
 
 	nodes = nodes.
-		ExcludeNode(s.opt.ControllerNodeName).
-		ExcludeOffline()
+		ExcludeNode(s.opt.ControllerNodeName)
 
 	instances, err := s.backend.Instances()
 	if err != nil {
 		return err
 	}
 
+	insToDel := s.findInstancesToDelete(instances, nodes, logger)
+	insToDelKeys := lo.Keys(insToDel)
+
+	// instance not exist, but jenkins node registered in offline
+	_, nodesToDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
+
+	// delete nodes from jenkins
 	var errs error
-	ins := backend.NewInstances()
+	for _, name := range append(nodesToDel, insToDelKeys...) {
+		logger.Infof("removing node %s from Jenkins", name)
+
+		if s.opt.DryRun {
+			continue
+		}
+
+		if _, err := s.client.DeleteNode(ctx, name); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
+	// delete instance from cloud backend
+	if insToDel.Len() > 0 {
+		logger.Infof("found %d running instances (%s) which are not registered in Jenkins. Will try to remove them", insToDel.Len(), strings.Join(insToDelKeys, ","))
+
+		if s.opt.DryRun {
+			return errs
+		}
+
+		if err = s.backend.Terminate(insToDel); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
+	return errs
+}
+
+// findInstancesToDelete get instances that missing in jenkins and lunchTime is more then specified duration.
+func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client.Nodes, logger *log.Entry) backend.Instances {
+	insToDel := backend.NewInstances()
 	for _, instance := range instances {
 		// verify that each instance is being seen by Jenkins
 		name := instance.Name()
-		if node, ok := nodes.IsExist(name); ok && !node.Raw.Offline {
+		if node, ok := nodes[name]; ok && !node.Raw.Offline {
 			continue
 		}
 
 		// lazy load of additional data about instance
-		if err = instance.Describe(); err != nil {
-			errs = multierror.Append(errs, err)
+		if err := instance.Describe(); err != nil {
+			logger.Error(err)
 
 			continue
 		}
@@ -461,32 +500,15 @@ func (s *Scaler) gc(ctx context.Context) error {
 		// TODO: let user specify time
 		// not taking down nodes that are running less than 20 minutes
 		if instanceLunchTime := time.Since(*instance.LaunchTime()); instanceLunchTime < 20*time.Minute {
-			logger.Infof("not taking instance %q down since it is running only %v", name, instanceLunchTime)
+			logger.Infof("skipping instance %s since it is running only %v", name, instanceLunchTime)
 
 			continue
 		}
 
-		logger.Infof("found running instance %q which is not registered in Jenkins. will try to remove it", name)
-
-		ins.Add(instance)
+		insToDel.Add(instance)
 	}
 
-	if ins.Len() > 0 && !s.opt.DryRun {
-		// try to remove it from jenkins
-		ins.Itr(func(i backend.Instance) bool {
-			if _, err := s.client.DeleteNode(ctx, i.Name()); err != nil {
-				errs = multierror.Append(errs, err)
-			}
-
-			return false
-		})
-
-		if err = s.backend.Terminate(ins); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-
-	return errs
+	return insToDel
 }
 
 func (o *Options) Name() string {
