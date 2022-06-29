@@ -1,5 +1,12 @@
 # Jenkins AutoScaler
 
+[![build](https://github.com/bringg/jenkins-autoscaler/actions/workflows/test.yml/badge.svg)](https://github.com/bringg/jenkins-autoscaler/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/bringg/jenkins-autoscaler/branch/master/graph/badge.svg?token=eyQ42UjW9z)](https://codecov.io/gh/bringg/jenkins-autoscaler)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bringg/jenkins-autoscaler)](https://goreportcard.com/report/github.com/bringg/jenkins-autoscaler)
+[![GoDoc](https://godoc.org/github.com/bringg/jenkins-autoscaler?status.svg)](https://godoc.org/github.com/bringg/jenkins-autoscaler)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![Downloads](https://img.shields.io/github/downloads/bringg/jenkins-autoscaler/total)
+
 Jenkins Autoscaler is a tool that automatically adjusts the size of the Jenkins worker nodes in AWS or GCP when one of the following conditions is true:
 
   1. If the usage of Jenkins nodes is smaller then the specified threshold, it will scale down or if the usage is larger then a specified threshold, will scale up to the maximum of specified size limit.
