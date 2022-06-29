@@ -444,13 +444,14 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 		return err
 	}
 
-	insToDel, errs := s.findInstancesToDelete(instances, nodes, logger)
+	insToDel := s.findInstancesToDelete(instances, nodes, logger)
 	insToDelKeys := lo.Keys(insToDel)
 
 	// instance not exist, but jenkins node registered in offline
 	_, nodesToDel := lo.Difference(lo.Keys(instances), lo.Keys(nodes))
 
 	// delete nodes from jenkins
+	var errs error
 	for _, name := range append(nodesToDel, insToDelKeys...) {
 		logger.Infof("removing node %s from Jenkins", name)
 
@@ -480,8 +481,7 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 }
 
 // findInstancesToDelete get instances that missing in jenkins and lunchTime is more then specified duration.
-func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client.Nodes, logger *log.Entry) (backend.Instances, error) {
-	var errs error
+func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client.Nodes, logger *log.Entry) backend.Instances {
 	insToDel := backend.NewInstances()
 	for _, instance := range instances {
 		// verify that each instance is being seen by Jenkins
@@ -492,7 +492,7 @@ func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client
 
 		// lazy load of additional data about instance
 		if err := instance.Describe(); err != nil {
-			errs = multierror.Append(errs, err)
+			logger.Error(err)
 
 			continue
 		}
@@ -508,7 +508,7 @@ func (s *Scaler) findInstancesToDelete(instances backend.Instances, nodes client
 		insToDel.Add(instance)
 	}
 
-	return insToDel, errs
+	return insToDel
 }
 
 func (o *Options) Name() string {
