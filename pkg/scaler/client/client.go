@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httputil"
 
@@ -58,9 +60,13 @@ func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 		ExcludeNode(c.opt.ControllerNodeName).
 		ExcludeOffline()
 
-	currentUsage := int64((float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100)
+	currentUsage := (float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100
 
-	return currentUsage, nil
+	if math.IsNaN(currentUsage) || math.IsInf(currentUsage, 0) {
+		return 0, errors.New("can't calculate usage, wrong data")
+	}
+
+	return int64(currentUsage), nil
 }
 
 func (c *WrapperClient) getNodes(computers *gojenkins.Computers) Nodes {
