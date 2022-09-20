@@ -144,6 +144,12 @@ var (
 			Help:     "ignore working hours when scaling down",
 			NoPrefix: true,
 		},
+		{
+			Name:     "percent_of_missing_nodes",
+			Help:     "percent of missing nodes in jenkins, used in gc interval",
+			Default:  60,
+			NoPrefix: true,
+		},
 	}
 )
 

@@ -26,16 +26,16 @@ var ErrNodeInUse = errors.New("can't remove current node, node is in use")
 
 type (
 	Scaler struct {
-		ctx           context.Context
-		backend       backend.Backend
-		client        client.JenkinsAccessor
-		opt           *Options
-		lastScaleDown time.Time
-		lastScaleUp   time.Time
-		lastGcCounter int
-		logger        *log.Entry
-		schedule      gronx.Gronx
-		metrics       *Metrics
+		ctx            context.Context
+		backend        backend.Backend
+		client         client.JenkinsAccessor
+		opt            *Options
+		lastScaleDown  time.Time
+		lastScaleUp    time.Time
+		gcRetryCounter int
+		logger         *log.Entry
+		schedule       gronx.Gronx
+		metrics        *Metrics
 	}
 
 	// Metrics represents metrics associated to a scaler.
@@ -55,6 +55,7 @@ type (
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
+		PercentOfMissingNodes                  int64       `config:"percent_of_missing_nodes"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -430,12 +431,12 @@ func (s *Scaler) GC(ctx context.Context) {
 }
 
 func (s *Scaler) stopGc() bool {
-	s.lastGcCounter++
-	if s.lastGcCounter <= 3 {
+	s.gcRetryCounter++
+	if s.gcRetryCounter <= 3 {
 		return true
 	}
 
-	s.lastGcCounter = 0
+	s.gcRetryCounter = 0
 
 	return false
 }
@@ -456,11 +457,19 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 		return err
 	}
 
-	if nodes.Len()/instances.Len()*100 < 60 {
+	// after jenkins master is restarted we need to wait some time to let agents reconnect back,
+	// so if gc interval called in the same time we have inconsistent data, nodes are missing in jenkins.
+	// default 60% of missing nodes to start counter
+	il := instances.Len()
+	nl := nodes.Len()
+	if il > 0 && int64(float64(nl)/float64(il)*100) < s.opt.PercentOfMissingNodes {
 		if s.stopGc() {
-			return fmt.Errorf("inconsistent data, nodes: %d - instances: %d", nodes.Len(), instances.Len())
+			return fmt.Errorf("inconsistent data, nodes: %d - instances: %d", nl, il)
 		}
 	}
+
+	// reset gc retry counter
+	s.gcRetryCounter = 0
 
 	insToDel := s.findInstancesToDelete(instances, nodes, logger)
 	insToDelKeys := lo.Keys(insToDel)

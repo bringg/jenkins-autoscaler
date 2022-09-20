@@ -55,6 +55,7 @@ var _ = g.Describe("Scaler", func() {
 			cfg.Set("scale_down_grace_period", "10m")
 			cfg.Set("scale_down_threshold", "30")
 			cfg.Set("max_nodes", "10")
+			cfg.Set("percent_of_missing_nodes", "70")
 			cfg.Set("min_nodes_during_working_hours", "2")
 			cfg.Set("scale_down_grace_period_during_working_hours", "1h")
 			cfg.Set("working_hours_cron_expressions", "* * * * *")
