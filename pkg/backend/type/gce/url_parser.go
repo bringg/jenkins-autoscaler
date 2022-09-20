@@ -12,11 +12,11 @@ var reResVars = regexp.MustCompile(`\\\{[^{}]+\\\}`)
 // These variables will be parsed and stored in map.
 //
 // Example:
-//     pattern	= /compute/v1/projects/{projectID}/zones/{zoneID}/instances/{instanceName}
-//     url		= /compute/v1/projects/bringg-test/zones/us-east1-b/instances/integration-jenkins-slave-xpx5
 //
-//     map = { "instanceName": "integration-jenkins-slave-xpx5", "projectID": "bringg-test", "zoneID": "us-east1-b" }
+//	pattern	= /compute/v1/projects/{projectID}/zones/{zoneID}/instances/{instanceName}
+//	url		= /compute/v1/projects/bringg-test/zones/us-east1-b/instances/integration-jenkins-slave-xpx5
 //
+//	map = { "instanceName": "integration-jenkins-slave-xpx5", "projectID": "bringg-test", "zoneID": "us-east1-b" }
 func ParseURLPath(pattern string, rawURL string) map[string]string {
 	u, err := url.Parse(rawURL)
 	if err != nil {

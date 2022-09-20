@@ -25,10 +25,9 @@ type (
 	}
 
 	Backend struct {
-		name string
-		ctx  context.Context
-		opt  *Options
-		srv  *compute.Service
+		ctx context.Context
+		opt *Options
+		srv *compute.Service
 		// use a single instance of Validate, it caches struct info
 		validate *validator.Validate
 	}
