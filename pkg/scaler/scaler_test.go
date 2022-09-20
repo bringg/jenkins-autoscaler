@@ -74,9 +74,14 @@ var _ = g.Describe("Scaler", func() {
 
 		g.Describe("GC", func() {
 			g.It("clear 2 instances not registered in jenkins", func() {
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(4)
 				// provider will decrease instances to 3
-				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
+				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(4)
+
+				scal.GC(ctx)
+				scal.GC(ctx)
+				scal.GC(ctx)
+
 				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
 					o.Expect(ins).To(o.HaveLen(2))
 

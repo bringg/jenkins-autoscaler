@@ -32,6 +32,7 @@ type (
 		opt           *Options
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
+		lastGcCounter int
 		logger        *log.Entry
 		schedule      gronx.Gronx
 		metrics       *Metrics
@@ -428,6 +429,17 @@ func (s *Scaler) GC(ctx context.Context) {
 	}
 }
 
+func (s *Scaler) stopGc() bool {
+	s.lastGcCounter++
+	if s.lastGcCounter <= 3 {
+		return true
+	}
+
+	s.lastGcCounter = 0
+
+	return false
+}
+
 func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	logger.Debug("starting GC")
 
@@ -442,6 +454,12 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	instances, err := s.backend.Instances()
 	if err != nil {
 		return err
+	}
+
+	if nodes.Len()/instances.Len()*100 < 60 {
+		if s.stopGc() {
+			return fmt.Errorf("inconsistent data, nodes: %d - instances: %d", nodes.Len(), instances.Len())
+		}
 	}
 
 	insToDel := s.findInstancesToDelete(instances, nodes, logger)

@@ -5,12 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bringg/jenkins-autoscaler/pkg/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/bringg/jenkins-autoscaler/pkg/config"
 )
 
 type (

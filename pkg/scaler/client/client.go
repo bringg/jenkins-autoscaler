@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -63,7 +62,7 @@ func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 	currentUsage := (float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100
 
 	if math.IsNaN(currentUsage) || math.IsInf(currentUsage, 0) {
-		return 0, errors.New("can't calculate usage, wrong data")
+		return 0, nil
 	}
 
 	return int64(currentUsage), nil
