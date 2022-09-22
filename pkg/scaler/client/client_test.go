@@ -43,8 +43,9 @@ var _ = g.Describe("Client", func() {
 		g.It("jenkins server not available", func() {
 			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {})
 
-			_, err := wc.GetCurrentUsage(context.Background())
-			o.Expect(err.Error()).To(o.ContainSubstring("can't calculate usage, wrong data"))
+			usage, err := wc.GetCurrentUsage(context.Background())
+			o.Expect(err).To(o.BeNil())
+			o.Expect(usage).To(o.BeZero())
 		})
 
 		g.It("jenkins server available", func() {

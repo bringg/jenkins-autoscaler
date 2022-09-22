@@ -53,6 +53,7 @@ var _ = g.Describe("Scaler", func() {
 			cfg.Set("scale_up_threshold", "70")
 			cfg.Set("scale_up_grace_period", "1s")
 			cfg.Set("scale_down_grace_period", "10m")
+			cfg.Set("err_grace_period", "200µs")
 			cfg.Set("scale_down_threshold", "30")
 			cfg.Set("max_nodes", "10")
 			cfg.Set("min_nodes_during_working_hours", "2")
@@ -73,6 +74,27 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("GC", func() {
+			g.It("should start count on fail from jenkins master api", func() {
+				scal.lastErr = time.Now()
+				// skipping gc cause the error timer
+				scal.GC(ctx)
+
+				time.Sleep(50 * time.Microsecond)
+
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
+				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
+
+				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
+					o.Expect(ins).To(o.HaveLen(2))
+
+					return nil
+				}).Times(1)
+
+				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
+
+				scal.GC(ctx)
+			})
+
 			g.It("clear 2 instances not registered in jenkins", func() {
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
 				// provider will decrease instances to 3

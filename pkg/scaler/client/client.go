@@ -2,13 +2,15 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httputil"
 
 	"github.com/bndr/gojenkins"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
 )
 
 type (
@@ -38,10 +40,14 @@ type (
 
 // New returns a new Client.
 func New(opt *Options) *WrapperClient {
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = 2
+	retryClient.Logger = &logrus.Logger{Out: io.Discard}
+
 	return &WrapperClient{
 		opt: opt,
 		Jenkins: gojenkins.CreateJenkins(
-			nil,
+			retryClient.StandardClient(),
 			opt.JenkinsURL,
 			opt.JenkinsUser,
 			opt.JenkinsToken,
@@ -63,7 +69,7 @@ func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 	currentUsage := (float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100
 
 	if math.IsNaN(currentUsage) || math.IsInf(currentUsage, 0) {
-		return 0, errors.New("can't calculate usage, wrong data")
+		return 0, nil
 	}
 
 	return int64(currentUsage), nil

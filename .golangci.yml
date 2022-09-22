@@ -16,7 +16,7 @@ linters:
   - unconvert
   - promlinter
   - prealloc
-  - varcheck
+  - unused
 
 linters-settings:
   prealloc:
