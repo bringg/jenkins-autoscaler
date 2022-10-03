@@ -128,6 +128,12 @@ var (
 			NoPrefix: true,
 		},
 		{
+			Name:     "err_grace_period",
+			Help:     "how much time to wait after error for another gc performed",
+			Default:  "2m",
+			NoPrefix: true,
+		},
+		{
 			Name:     "scale_down_grace_period_during_working_hours",
 			Help:     "scale down cooldown timer in minutes during working hours",
 			Default:  "10m",

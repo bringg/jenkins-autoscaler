@@ -1,6 +1,7 @@
 package scaler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -76,10 +77,24 @@ var _ = g.Describe("Scaler", func() {
 		g.Describe("GC", func() {
 			g.It("should start count on fail from jenkins master api", func() {
 				scal.lastErr = time.Now()
-				// skipping gc cause the error timer
-				scal.GC(ctx)
+				scal.opt = &Options{
+					ErrGracePeriod: fs.Duration(1 * time.Minute),
+				}
 
-				time.Sleep(50 * time.Microsecond)
+				buf := new(bytes.Buffer)
+				logger, _ = test.NewNullLogger()
+				logger.SetLevel(logrus.InfoLevel)
+				logger.SetOutput(buf)
+
+				ctx := context.Background()
+				// skipping gc cause the error timer
+				err := scal.gc(ctx, logger.WithContext(ctx))
+
+				o.Expect(err).To(o.Not(o.HaveOccurred()))
+				o.Expect(buf).Should(o.ContainSubstring("still in last error period. skipping gc"))
+
+				// retry gc again after err period passed
+				scal.lastErr = scal.lastErr.Add(-3 * time.Minute)
 
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
@@ -92,7 +107,8 @@ var _ = g.Describe("Scaler", func() {
 
 				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
-				scal.GC(ctx)
+				err = scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.Not(o.HaveOccurred()))
 			})
 
 			g.It("clear 2 instances not registered in jenkins", func() {
