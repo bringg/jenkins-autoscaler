@@ -84,7 +84,9 @@ var _ = g.Describe("Scaler", func() {
 				buf := new(bytes.Buffer)
 				logger, _ = test.NewNullLogger()
 				logger.SetLevel(logrus.InfoLevel)
-				logger.SetOutput(buf)
+				gwr := g.GinkgoWriter
+				gwr.TeeTo(buf)
+				logger.SetOutput(gwr)
 
 				ctx := context.Background()
 				// skipping gc cause the error timer
