@@ -75,6 +75,22 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("GC", func() {
+			g.It("should fail on error from jenkins api", func() {
+				buf := new(bytes.Buffer)
+
+				gwr := g.GinkgoWriter
+				gwr.TeeTo(buf)
+
+				scal.logger.Logger.SetOutput(gwr)
+
+				msg := "api response status code 500"
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(nil, errors.New(msg)).Times(1)
+
+				scal.GC(ctx)
+
+				o.Expect(buf).Should(o.ContainSubstring(msg))
+			})
+
 			g.It("should start count on fail from jenkins master api", func() {
 				scal.lastErr = time.Now()
 				scal.opt = &Options{
@@ -155,6 +171,44 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("Do", func() {
+			g.Context("set last error time from jenkins api", func() {
+				g.It("set error from GetCurrentUsage", func() {
+					buf := new(bytes.Buffer)
+
+					gwr := g.GinkgoWriter
+					gwr.TeeTo(buf)
+
+					scal.logger.Logger.SetOutput(gwr)
+
+					msg := "api response status code 500"
+					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(0), errors.New(msg)).Times(1)
+
+					scal.Do(ctx)
+
+					o.Expect(buf).Should(o.ContainSubstring("can't get current jenkins usage: " + msg))
+					o.Expect(scal.lastErr).ShouldNot(o.BeNil())
+				})
+
+				g.It("set error from GetAllNodes", func() {
+					buf := new(bytes.Buffer)
+
+					gwr := g.GinkgoWriter
+					gwr.TeeTo(buf)
+
+					scal.logger.Logger.SetOutput(gwr)
+
+					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(80), nil).Times(1)
+
+					msg := "api response status code 500"
+					client.EXPECT().GetAllNodes(gomock.Any()).Return(nil, errors.New(msg)).Times(1)
+
+					scal.Do(ctx)
+
+					o.Expect(buf).Should(o.ContainSubstring("can't get jenkins nodes: " + msg))
+					o.Expect(scal.lastErr).ShouldNot(o.BeNil())
+				})
+			})
+
 			g.Context("scaleUp", func() {
 				g.It("run provider with 1 node, not in working hours, with usage over threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
