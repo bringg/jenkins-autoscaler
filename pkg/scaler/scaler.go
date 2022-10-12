@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -33,11 +32,9 @@ type (
 		opt           *Options
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
-		lastErr       time.Time
 		logger        *log.Entry
 		schedule      gronx.Gronx
 		metrics       *Metrics
-		mu            sync.Mutex
 	}
 
 	// Metrics represents metrics associated to a scaler.
@@ -61,7 +58,6 @@ type (
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
 		ScaleDownThreshold                     int64       `config:"scale_down_threshold"`
-		ErrGracePeriod                         fs.Duration `config:"err_grace_period"`
 		ScaleUpGracePeriod                     fs.Duration `config:"scale_up_grace_period"`
 		ScaleDownGracePeriod                   fs.Duration `config:"scale_down_grace_period"`
 		ScaleDownGracePeriodDuringWorkingHours fs.Duration `config:"scale_down_grace_period_during_working_hours"`
@@ -167,10 +163,6 @@ func (s *Scaler) Do(ctx context.Context) {
 	if err != nil {
 		logger.Errorf("can't get current jenkins usage: %v", err)
 
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.lastErr = time.Now()
-
 		return
 	}
 
@@ -179,10 +171,6 @@ func (s *Scaler) Do(ctx context.Context) {
 	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
 		logger.Errorf("can't get jenkins nodes: %v", err)
-
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.lastErr = time.Now()
 
 		return
 	}
@@ -436,25 +424,12 @@ func (s *Scaler) GC(ctx context.Context) {
 	if err := s.gc(ctx, logger); err != nil {
 		s.metrics.numFailedGC.WithLabelValues(s.backend.Name()).Inc()
 
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.lastErr = time.Now()
-
 		logger.Error(err)
 	}
 }
 
 func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	logger.Debug("starting GC")
-
-	lastErr := time.Since(s.lastErr)
-	lastErrPeriod := time.Duration(s.opt.ErrGracePeriod)
-
-	if lastErr < lastErrPeriod {
-		logger.Infof("still in last error period. skipping gc: %v < %v", lastErr, lastErrPeriod)
-
-		return nil
-	}
 
 	nodes, err := s.client.GetAllNodes(ctx)
 	if err != nil {

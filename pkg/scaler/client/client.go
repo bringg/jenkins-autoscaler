@@ -7,9 +7,12 @@ import (
 	"math"
 	"net/http"
 	"net/http/httputil"
+	"sync"
+	"time"
 
 	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/rclone/rclone/fs"
 	"github.com/sirupsen/logrus"
 )
 
@@ -24,17 +27,20 @@ type (
 	WrapperClient struct {
 		*gojenkins.Jenkins
 
-		opt *Options
+		lastErr time.Time
+		opt     *Options
+		mu      sync.Mutex
 	}
 
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL         string `config:"jenkins_url" validate:"required"`
-		JenkinsUser        string `config:"jenkins_user" validate:"required"`
-		JenkinsToken       string `config:"jenkins_token" validate:"required"`
-		ControllerNodeName string `config:"controller_node_name"`
-		NodeNumExecutors   int64  `config:"node_num_executors"`
+		JenkinsURL         string      `config:"jenkins_url" validate:"required"`
+		JenkinsUser        string      `config:"jenkins_user" validate:"required"`
+		JenkinsToken       string      `config:"jenkins_token" validate:"required"`
+		ControllerNodeName string      `config:"controller_node_name"`
+		NodeNumExecutors   int64       `config:"node_num_executors"`
+		ErrGracePeriod     fs.Duration `config:"err_grace_period"`
 	}
 )
 
@@ -124,21 +130,41 @@ func (n Nodes) ExcludeNode(name string) Nodes {
 }
 
 func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, error) {
-	computers := new(gojenkins.Computers)
+	lastErr := time.Since(c.lastErr)
+	lastErrPeriod := time.Duration(c.opt.ErrGracePeriod)
 
-	qr := map[string]string{
-		"depth": "1",
+	if lastErr < lastErrPeriod {
+		return nil, fmt.Errorf("still in error grace period. skipping request: %v < %v", lastErr, lastErrPeriod)
 	}
 
-	res, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
+	computers, err := func() (*gojenkins.Computers, error) {
+		computers := new(gojenkins.Computers)
+
+		qr := map[string]string{
+			"depth": "1",
+		}
+
+		res, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
+		if err != nil {
+			return nil, err
+		}
+
+		if res.StatusCode != http.StatusOK {
+			body, _ := httputil.DumpResponse(res, true)
+
+			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
+		}
+
+		return computers, nil
+	}()
+
 	if err != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		c.lastErr = time.Now()
+
 		return nil, err
-	}
-
-	if res.StatusCode != http.StatusOK {
-		body, _ := httputil.DumpResponse(res, true)
-
-		return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 	}
 
 	return computers, nil

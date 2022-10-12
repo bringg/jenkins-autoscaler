@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"github.com/bndr/gojenkins"
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
+	"github.com/rclone/rclone/fs"
 )
 
 var _ = g.Describe("Client", func() {
@@ -26,13 +28,11 @@ var _ = g.Describe("Client", func() {
 			ControllerNodeName: "Built-In Node",
 		}
 
-		wc = &WrapperClient{
-			opt: opts,
-			Jenkins: gojenkins.CreateJenkins(
-				ts.Client(),
-				ts.URL,
-			),
-		}
+		wc = New(opts)
+		wc.Jenkins = gojenkins.CreateJenkins(
+			ts.Client(),
+			ts.URL,
+		)
 	})
 
 	g.AfterEach(func() {
@@ -41,11 +41,20 @@ var _ = g.Describe("Client", func() {
 
 	g.Describe("GetCurrentUsage", func() {
 		g.It("jenkins server not available", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {})
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+			})
+
+			wc.opt.ErrGracePeriod = fs.Duration(1 * time.Minute)
 
 			usage, err := wc.GetCurrentUsage(context.Background())
-			o.Expect(err).To(o.BeNil())
+			o.Expect(err).To(o.HaveOccurred())
 			o.Expect(usage).To(o.BeZero())
+
+			nodes, err := wc.GetAllNodes(context.Background())
+			o.Expect(err).To(o.HaveOccurred())
+			o.Expect(nodes).To(o.BeNil())
+			o.Expect(err.Error()).To(o.ContainSubstring("still in error grace period. skipping request"))
 		})
 
 		g.It("jenkins server available", func() {

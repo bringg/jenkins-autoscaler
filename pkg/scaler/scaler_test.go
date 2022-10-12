@@ -3,7 +3,10 @@ package scaler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -92,38 +95,60 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("should start count on fail from jenkins master api", func() {
-				scal.lastErr = time.Now()
-				scal.opt = &Options{
+				respErr := true
+				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if respErr {
+						w.WriteHeader(http.StatusBadRequest)
+					} else {
+						w.WriteHeader(http.StatusOK)
+
+						json.NewEncoder(w).Encode(gojenkins.Computers{
+							Computers: []*gojenkins.NodeResponse{
+								{
+									DisplayName: "0",
+								},
+								{
+									DisplayName: "1",
+								},
+								{
+									DisplayName: "2",
+								},
+								{
+									DisplayName: scal.opt.ControllerNodeName,
+								},
+							},
+						})
+					}
+				}))
+				defer s.Close()
+
+				opts := &jclient.Options{
+					JenkinsURL:     s.URL,
 					ErrGracePeriod: fs.Duration(1 * time.Minute),
 				}
 
-				buf := new(bytes.Buffer)
-				logger, _ = test.NewNullLogger()
-				logger.SetLevel(logrus.InfoLevel)
-				gwr := g.GinkgoWriter
-				gwr.TeeTo(buf)
-				logger.SetOutput(gwr)
+				scal.client = jclient.New(opts)
 
-				ctx := context.Background()
 				// skipping gc cause the error timer
-				err := scal.gc(ctx, logger.WithContext(ctx))
+				err := scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.HaveOccurred())
+				o.Expect(err.Error()).To(o.ContainSubstring("api response status code"))
 
-				o.Expect(err).To(o.Not(o.HaveOccurred()))
-				o.Expect(buf).Should(o.ContainSubstring("still in last error period. skipping gc"))
+				// skipping gc cause the error timer
+				err = scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.HaveOccurred())
+				o.Expect(err.Error()).To(o.ContainSubstring("still in error grace period. skipping request"))
 
 				// retry gc again after err period passed
-				scal.lastErr = scal.lastErr.Add(-3 * time.Minute)
+				opts.ErrGracePeriod = fs.Duration(0)
+				respErr = false
 
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
-
 				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
 					o.Expect(ins).To(o.HaveLen(2))
 
 					return nil
 				}).Times(1)
-
-				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 				err = scal.gc(ctx, scal.logger)
 				o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -186,7 +211,6 @@ var _ = g.Describe("Scaler", func() {
 					scal.Do(ctx)
 
 					o.Expect(buf).Should(o.ContainSubstring("can't get current jenkins usage: " + msg))
-					o.Expect(scal.lastErr).ShouldNot(o.BeNil())
 				})
 
 				g.It("set error from GetAllNodes", func() {
@@ -205,7 +229,6 @@ var _ = g.Describe("Scaler", func() {
 					scal.Do(ctx)
 
 					o.Expect(buf).Should(o.ContainSubstring("can't get jenkins nodes: " + msg))
-					o.Expect(scal.lastErr).ShouldNot(o.BeNil())
 				})
 			})
 
