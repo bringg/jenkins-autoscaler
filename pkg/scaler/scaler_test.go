@@ -124,7 +124,7 @@ var _ = g.Describe("Scaler", func() {
 
 				opts := &jclient.Options{
 					JenkinsURL:     s.URL,
-					ErrGracePeriod: fs.Duration(1 * time.Minute),
+					LastErrBackoff: 1 * time.Minute,
 				}
 
 				scal.client = jclient.New(opts)
@@ -137,10 +137,10 @@ var _ = g.Describe("Scaler", func() {
 				// skipping gc cause the error timer
 				err = scal.gc(ctx, scal.logger)
 				o.Expect(err).To(o.HaveOccurred())
-				o.Expect(err.Error()).To(o.ContainSubstring("still in error grace period. skipping request"))
+				o.Expect(err.Error()).To(o.ContainSubstring("request rejected because jenkins API was in-accessible"))
 
 				// retry gc again after err period passed
-				opts.ErrGracePeriod = fs.Duration(0)
+				opts.LastErrBackoff = 0
 				respErr = false
 
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)

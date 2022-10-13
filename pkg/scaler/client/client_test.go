@@ -10,7 +10,6 @@ import (
 	"github.com/bndr/gojenkins"
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
-	"github.com/rclone/rclone/fs"
 )
 
 var _ = g.Describe("Client", func() {
@@ -45,7 +44,7 @@ var _ = g.Describe("Client", func() {
 				w.WriteHeader(http.StatusBadRequest)
 			})
 
-			wc.opt.ErrGracePeriod = fs.Duration(1 * time.Minute)
+			wc.opt.LastErrBackoff = 1 * time.Minute
 
 			usage, err := wc.GetCurrentUsage(context.Background())
 			o.Expect(err).To(o.HaveOccurred())
@@ -54,7 +53,7 @@ var _ = g.Describe("Client", func() {
 			nodes, err := wc.GetAllNodes(context.Background())
 			o.Expect(err).To(o.HaveOccurred())
 			o.Expect(nodes).To(o.BeNil())
-			o.Expect(err.Error()).To(o.ContainSubstring("still in error grace period. skipping request"))
+			o.Expect(err.Error()).To(o.ContainSubstring("request rejected because jenkins API was in-accessible"))
 		})
 
 		g.It("jenkins server available", func() {

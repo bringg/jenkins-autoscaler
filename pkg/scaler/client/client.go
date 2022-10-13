@@ -7,12 +7,10 @@ import (
 	"math"
 	"net/http"
 	"net/http/httputil"
-	"sync"
 	"time"
 
 	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/rclone/rclone/fs"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,18 +27,17 @@ type (
 
 		lastErr time.Time
 		opt     *Options
-		mu      sync.Mutex
 	}
 
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL         string      `config:"jenkins_url" validate:"required"`
-		JenkinsUser        string      `config:"jenkins_user" validate:"required"`
-		JenkinsToken       string      `config:"jenkins_token" validate:"required"`
-		ControllerNodeName string      `config:"controller_node_name"`
-		NodeNumExecutors   int64       `config:"node_num_executors"`
-		ErrGracePeriod     fs.Duration `config:"err_grace_period"`
+		JenkinsURL         string        `config:"jenkins_url" validate:"required"`
+		JenkinsUser        string        `config:"jenkins_user" validate:"required"`
+		JenkinsToken       string        `config:"jenkins_token" validate:"required"`
+		ControllerNodeName string        `config:"controller_node_name"`
+		NodeNumExecutors   int64         `config:"node_num_executors"`
+		LastErrBackoff     time.Duration `config:"last_err_backoff"`
 	}
 )
 
@@ -49,6 +46,8 @@ func New(opt *Options) *WrapperClient {
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 2
 	retryClient.Logger = &logrus.Logger{Out: io.Discard}
+
+	opt.LastErrBackoff = 2 * time.Minute
 
 	return &WrapperClient{
 		opt: opt,
@@ -131,10 +130,10 @@ func (n Nodes) ExcludeNode(name string) Nodes {
 
 func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, error) {
 	lastErr := time.Since(c.lastErr)
-	lastErrPeriod := time.Duration(c.opt.ErrGracePeriod)
+	lastErrBackoff := c.opt.LastErrBackoff
 
-	if lastErr < lastErrPeriod {
-		return nil, fmt.Errorf("still in error grace period. skipping request: %v < %v", lastErr, lastErrPeriod)
+	if lastErr < lastErrBackoff {
+		return nil, fmt.Errorf("request rejected because jenkins API was in-accessible: %v < %v", lastErr, lastErrBackoff)
 	}
 
 	computers, err := func() (*gojenkins.Computers, error) {
@@ -159,9 +158,6 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}()
 
 	if err != nil {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
 		c.lastErr = time.Now()
 
 		return nil, err
