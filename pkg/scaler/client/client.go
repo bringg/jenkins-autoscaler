@@ -2,13 +2,16 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"github.com/bndr/gojenkins"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
 )
 
 type (
@@ -22,26 +25,34 @@ type (
 	WrapperClient struct {
 		*gojenkins.Jenkins
 
-		opt *Options
+		lastErr time.Time
+		opt     *Options
 	}
 
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL         string `config:"jenkins_url" validate:"required"`
-		JenkinsUser        string `config:"jenkins_user" validate:"required"`
-		JenkinsToken       string `config:"jenkins_token" validate:"required"`
-		ControllerNodeName string `config:"controller_node_name"`
-		NodeNumExecutors   int64  `config:"node_num_executors"`
+		JenkinsURL         string        `config:"jenkins_url" validate:"required"`
+		JenkinsUser        string        `config:"jenkins_user" validate:"required"`
+		JenkinsToken       string        `config:"jenkins_token" validate:"required"`
+		ControllerNodeName string        `config:"controller_node_name"`
+		NodeNumExecutors   int64         `config:"node_num_executors"`
+		LastErrBackoff     time.Duration `config:"last_err_backoff"`
 	}
 )
 
 // New returns a new Client.
 func New(opt *Options) *WrapperClient {
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = 2
+	retryClient.Logger = &logrus.Logger{Out: io.Discard}
+
+	opt.LastErrBackoff = 2 * time.Minute
+
 	return &WrapperClient{
 		opt: opt,
 		Jenkins: gojenkins.CreateJenkins(
-			nil,
+			retryClient.StandardClient(),
 			opt.JenkinsURL,
 			opt.JenkinsUser,
 			opt.JenkinsToken,
@@ -63,7 +74,7 @@ func (c *WrapperClient) GetCurrentUsage(ctx context.Context) (int64, error) {
 	currentUsage := (float64(computers.BusyExecutors) / float64(nodes.Len()*c.opt.NodeNumExecutors)) * 100
 
 	if math.IsNaN(currentUsage) || math.IsInf(currentUsage, 0) {
-		return 0, errors.New("can't calculate usage, wrong data")
+		return 0, nil
 	}
 
 	return int64(currentUsage), nil
@@ -118,21 +129,38 @@ func (n Nodes) ExcludeNode(name string) Nodes {
 }
 
 func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, error) {
-	computers := new(gojenkins.Computers)
+	lastErr := time.Since(c.lastErr)
+	lastErrBackoff := c.opt.LastErrBackoff
 
-	qr := map[string]string{
-		"depth": "1",
+	if lastErr < lastErrBackoff {
+		return nil, fmt.Errorf("request rejected because jenkins API was in-accessible: %v < %v", lastErr, lastErrBackoff)
 	}
 
-	res, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
+	computers, err := func() (*gojenkins.Computers, error) {
+		computers := new(gojenkins.Computers)
+
+		qr := map[string]string{
+			"depth": "1",
+		}
+
+		res, err := c.Requester.GetJSON(ctx, "/computer", computers, qr)
+		if err != nil {
+			return nil, err
+		}
+
+		if res.StatusCode != http.StatusOK {
+			body, _ := httputil.DumpResponse(res, true)
+
+			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
+		}
+
+		return computers, nil
+	}()
+
 	if err != nil {
+		c.lastErr = time.Now()
+
 		return nil, err
-	}
-
-	if res.StatusCode != http.StatusOK {
-		body, _ := httputil.DumpResponse(res, true)
-
-		return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 	}
 
 	return computers, nil

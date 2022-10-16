@@ -1,8 +1,12 @@
 package scaler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -53,6 +57,7 @@ var _ = g.Describe("Scaler", func() {
 			cfg.Set("scale_up_threshold", "70")
 			cfg.Set("scale_up_grace_period", "1s")
 			cfg.Set("scale_down_grace_period", "10m")
+			cfg.Set("err_grace_period", "200µs")
 			cfg.Set("scale_down_threshold", "30")
 			cfg.Set("max_nodes", "10")
 			cfg.Set("min_nodes_during_working_hours", "2")
@@ -73,6 +78,82 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("GC", func() {
+			g.It("should fail on error from jenkins api", func() {
+				buf := new(bytes.Buffer)
+
+				gwr := g.GinkgoWriter
+				gwr.TeeTo(buf)
+
+				scal.logger.Logger.SetOutput(gwr)
+
+				msg := "api response status code 500"
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(nil, errors.New(msg)).Times(1)
+
+				scal.GC(ctx)
+
+				o.Expect(buf).Should(o.ContainSubstring(msg))
+			})
+
+			g.It("should start count on fail from jenkins master api", func() {
+				respErr := true
+				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if respErr {
+						w.WriteHeader(http.StatusBadRequest)
+					} else {
+						w.WriteHeader(http.StatusOK)
+
+						json.NewEncoder(w).Encode(gojenkins.Computers{
+							Computers: []*gojenkins.NodeResponse{
+								{
+									DisplayName: "0",
+								},
+								{
+									DisplayName: "1",
+								},
+								{
+									DisplayName: "2",
+								},
+								{
+									DisplayName: scal.opt.ControllerNodeName,
+								},
+							},
+						})
+					}
+				}))
+				defer s.Close()
+
+				opts := &jclient.Options{
+					JenkinsURL:     s.URL,
+					LastErrBackoff: 1 * time.Minute,
+				}
+
+				scal.client = jclient.New(opts)
+
+				// skipping gc cause the error timer
+				err := scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.HaveOccurred())
+				o.Expect(err.Error()).To(o.ContainSubstring("api response status code"))
+
+				// skipping gc cause the error timer
+				err = scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.HaveOccurred())
+				o.Expect(err.Error()).To(o.ContainSubstring("request rejected because jenkins API was in-accessible"))
+
+				// retry gc again after err period passed
+				opts.LastErrBackoff = 0
+				respErr = false
+
+				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
+				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
+					o.Expect(ins).To(o.HaveLen(2))
+
+					return nil
+				}).Times(1)
+
+				err = scal.gc(ctx, scal.logger)
+				o.Expect(err).To(o.Not(o.HaveOccurred()))
+			})
+
 			g.It("clear 2 instances not registered in jenkins", func() {
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
 				// provider will decrease instances to 3
@@ -115,6 +196,42 @@ var _ = g.Describe("Scaler", func() {
 		})
 
 		g.Describe("Do", func() {
+			g.Context("set last error time from jenkins api", func() {
+				g.It("set error from GetCurrentUsage", func() {
+					buf := new(bytes.Buffer)
+
+					gwr := g.GinkgoWriter
+					gwr.TeeTo(buf)
+
+					scal.logger.Logger.SetOutput(gwr)
+
+					msg := "api response status code 500"
+					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(0), errors.New(msg)).Times(1)
+
+					scal.Do(ctx)
+
+					o.Expect(buf).Should(o.ContainSubstring("can't get current jenkins usage: " + msg))
+				})
+
+				g.It("set error from GetAllNodes", func() {
+					buf := new(bytes.Buffer)
+
+					gwr := g.GinkgoWriter
+					gwr.TeeTo(buf)
+
+					scal.logger.Logger.SetOutput(gwr)
+
+					client.EXPECT().GetCurrentUsage(gomock.Any()).Return(int64(80), nil).Times(1)
+
+					msg := "api response status code 500"
+					client.EXPECT().GetAllNodes(gomock.Any()).Return(nil, errors.New(msg)).Times(1)
+
+					scal.Do(ctx)
+
+					o.Expect(buf).Should(o.ContainSubstring("can't get jenkins nodes: " + msg))
+				})
+			})
+
 			g.Context("scaleUp", func() {
 				g.It("run provider with 1 node, not in working hours, with usage over threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")

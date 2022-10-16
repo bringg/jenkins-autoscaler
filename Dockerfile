@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine as builder
+FROM golang:1.19-alpine as builder
 
 ARG VERSION=development
 ENV VERSION=$VERSION
@@ -8,7 +8,7 @@ COPY . .
 RUN apk add --no-cache git make \
     && make install
 
-FROM alpine:3.15
+FROM alpine:3.16
 LABEL maintainer "Bringg DevOps <devops@bringg.com>"
 
 ENV JAS_CONFIG=/dev/null
