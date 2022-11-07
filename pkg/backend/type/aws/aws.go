@@ -73,7 +73,7 @@ func (b *Backend) Name() string {
 }
 
 func (b *Backend) Resize(size int64) error {
-	if _, err := b.asClient.UpdateAutoScalingGroup(b.ctx, &autoscaling.UpdateAutoScalingGroupInput{
+	if _, err := b.asClient.SetDesiredCapacity(b.ctx, &autoscaling.SetDesiredCapacityInput{
 		AutoScalingGroupName: aws.String(b.opt.AutoScalingGroupName),
 		DesiredCapacity:      aws.Int32(int32(size)),
 	}); err != nil {

@@ -223,9 +223,7 @@ func (s *Scaler) Do(ctx context.Context) {
 func (s *Scaler) scaleUp(usage int64) error {
 	logger := s.logger
 
-	if time.Since(s.lastScaleUp) < time.Duration(s.opt.ScaleUpGracePeriod) {
-		logger.Info("still in grace period. won't scale up")
-
+	if s.isScaleUpGracePeriod() {
 		return nil
 	}
 
@@ -312,10 +310,28 @@ func (s *Scaler) scaleDown(nodes client.Nodes) error {
 	return nil
 }
 
-// // scaleToMinimum check if need normalize the num of nodes to minimum count.
+// isScaleUpGracePeriod check if is still in scale up grace period
+func (s *Scaler) isScaleUpGracePeriod() bool {
+	lastScaleUp := time.Since(s.lastScaleUp)
+	scaleUpGracePeriod := time.Duration(s.opt.ScaleUpGracePeriod)
+
+	if lastScaleUp < scaleUpGracePeriod {
+		s.logger.Infof("still in grace period. won't scale up: %v < %v", lastScaleUp, scaleUpGracePeriod)
+
+		return true
+	}
+
+	return false
+}
+
+// scaleToMinimum check if need normalize the num of nodes to minimum count.
 func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 	isWH := s.isWorkingHour()
 	minNodes := s.opt.MinNodesInWorkingHours
+
+	if s.isScaleUpGracePeriod() {
+		return nil
+	}
 
 	if s.opt.DryRun {
 		return nil
@@ -324,13 +340,23 @@ func (s *Scaler) scaleToMinimum(nodes client.Nodes) error {
 	if isWH && nodes.Len() < minNodes {
 		s.logger.Infof("under minimum of %d nodes during working hours. will adjust to the minimum", minNodes)
 
-		return s.backend.Resize(minNodes)
+		if err := s.backend.Resize(minNodes); err != nil {
+			return err
+		}
+
+		s.lastScaleUp = time.Now()
+
+		return nil
 	}
 
 	if nodes.Len() < 1 {
 		s.logger.Info("not a single node off work hours. will adjust to one")
 
-		return s.backend.Resize(1)
+		if err := s.backend.Resize(1); err != nil {
+			return err
+		}
+
+		s.lastScaleUp = time.Now()
 	}
 
 	return nil
