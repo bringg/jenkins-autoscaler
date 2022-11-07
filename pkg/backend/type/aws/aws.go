@@ -23,6 +23,7 @@ const BackendName = "aws"
 type (
 	// Options defines the configuration for this backend
 	Options struct {
+		Region               string `config:"region"`
 		AutoScalingGroupName string `config:"autoscaling_group_name" validate:"required"`
 	}
 
@@ -43,6 +44,11 @@ func init() {
 				Name: "autoscaling_group_name",
 				Help: "jenkins agent nodes autoscaling group name",
 			},
+			{
+				Name:    "region",
+				Default: "us-east-1",
+				Help:    "region to connect to",
+			},
 		},
 	})
 }
@@ -60,6 +66,10 @@ func NewBackend(ctx context.Context, m configmap.Mapper) (backend.Backend, error
 		return nil, errors.Wrap(err, "configuration error")
 	}
 
+	if opt.Region != "" {
+		cfg.Region = opt.Region
+	}
+
 	return &Backend{
 		ctx:       ctx,
 		opt:       opt,
@@ -73,7 +83,7 @@ func (b *Backend) Name() string {
 }
 
 func (b *Backend) Resize(size int64) error {
-	if _, err := b.asClient.UpdateAutoScalingGroup(b.ctx, &autoscaling.UpdateAutoScalingGroupInput{
+	if _, err := b.asClient.SetDesiredCapacity(b.ctx, &autoscaling.SetDesiredCapacityInput{
 		AutoScalingGroupName: aws.String(b.opt.AutoScalingGroupName),
 		DesiredCapacity:      aws.Int32(int32(size)),
 	}); err != nil {
