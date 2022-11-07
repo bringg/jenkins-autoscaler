@@ -67,6 +67,19 @@ jas  \
     --jenkins-token=jenkins6user6token6here
 ```
 
+example how to run in aws
+
+```bash
+
+jas  \
+    --backend=aws \
+    --aws-region=us-east-1 \
+    --aws-autoscaling-group-name=my-jenkins-asg \
+    --jenkins-url=https://ci.jenkins.com \
+    --jenkins-user=jenkins-admin \
+    --jenkins-token=jenkins6user6token6here
+```
+
 example how to run with the [config file](/examples/config.example.yml)
 
 ```yaml
@@ -94,6 +107,7 @@ backend:
     instance_group_manager: jenkins-nodes
   aws:
     autoscaling_group_name: jenkins-nodes
+    region: us-east-1
 ```
 
 ```bash
