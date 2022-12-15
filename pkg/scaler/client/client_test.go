@@ -142,5 +142,95 @@ var _ = g.Describe("Client", func() {
 			o.Expect(nodes).To(o.HaveLen(3))
 			o.Expect(nodes).To(o.HaveEach(o.HaveField("Raw.Offline", false)))
 		})
+
+		g.It("check exclude nodes by labels: node with label exist", func() {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(gojenkins.Computers{
+					Computers: []*gojenkins.NodeResponse{
+						{
+							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-android",
+								},
+							},
+						},
+						{
+							DisplayName: "node2",
+							Offline:     true,
+						},
+						{
+							DisplayName: "node3",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-ios",
+								},
+							},
+						},
+						{
+							DisplayName: "node4",
+						},
+						{
+							DisplayName: "node5",
+							Offline:     true,
+						},
+					},
+				})
+			})
+
+			wc.opt.ExcludeNodesByLabel = []string{"mac-ios"}
+			computers, err := wc.computers(context.Background())
+			o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+			nodes := wc.getNodes(computers).
+				ExcludeOffline()
+
+			o.Expect(nodes).To(o.HaveLen(2))
+		})
+
+		g.It("check exclude nodes by labels: node with label missing", func() {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(gojenkins.Computers{
+					Computers: []*gojenkins.NodeResponse{
+						{
+							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-android",
+								},
+							},
+						},
+						{
+							DisplayName: "node2",
+							Offline:     true,
+						},
+						{
+							DisplayName: "node3",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-ios",
+								},
+							},
+						},
+						{
+							DisplayName: "node4",
+						},
+						{
+							DisplayName: "node5",
+							Offline:     true,
+						},
+					},
+				})
+			})
+
+			wc.opt.ExcludeNodesByLabel = []string{"missing"}
+			computers, err := wc.computers(context.Background())
+			o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+			nodes := wc.getNodes(computers).
+				ExcludeOffline()
+
+			o.Expect(nodes).To(o.HaveLen(3))
+		})
 	})
 })

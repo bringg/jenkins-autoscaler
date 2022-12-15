@@ -11,6 +11,7 @@ import (
 
 	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/rclone/rclone/fs"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,12 +33,13 @@ type (
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL         string        `config:"jenkins_url" validate:"required"`
-		JenkinsUser        string        `config:"jenkins_user" validate:"required"`
-		JenkinsToken       string        `config:"jenkins_token" validate:"required"`
-		ControllerNodeName string        `config:"controller_node_name"`
-		NodeNumExecutors   int64         `config:"node_num_executors"`
-		LastErrBackoff     time.Duration `config:"last_err_backoff"`
+		JenkinsURL          string          `config:"jenkins_url" validate:"required"`
+		JenkinsUser         string          `config:"jenkins_user" validate:"required"`
+		JenkinsToken        string          `config:"jenkins_token" validate:"required"`
+		ControllerNodeName  string          `config:"controller_node_name"`
+		NodeNumExecutors    int64           `config:"node_num_executors"`
+		ExcludeNodesByLabel fs.CommaSepList `config:"exclude_nodes_by_label"`
+		LastErrBackoff      time.Duration   `config:"last_err_backoff"`
 	}
 )
 
@@ -152,6 +154,26 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 			body, _ := httputil.DumpResponse(res, true)
 
 			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
+		}
+
+		if labels := c.opt.ExcludeNodesByLabel; len(labels) > 0 {
+			nodes := make([]*gojenkins.NodeResponse, 0)
+		OUTER:
+			for _, node := range computers.Computers {
+				for _, v := range node.AssignedLabels {
+					for _, label := range labels {
+						if v, ok := v["name"]; ok && v == label {
+							continue OUTER
+						}
+					}
+				}
+
+				nodes = append(nodes, node)
+			}
+
+			if len(nodes) > 0 {
+				computers.Computers = nodes
+			}
 		}
 
 		return computers, nil

@@ -74,6 +74,11 @@ var (
 			Required:   true,
 		},
 		{
+			Name:     "exclude_nodes_by_label",
+			Help:     "jenkins exclude nodes by label",
+			NoPrefix: true,
+		},
+		{
 			Name:     "metrics_server_addr",
 			Help:     "address of http metrics server",
 			Default:  ":8080",
