@@ -232,5 +232,49 @@ var _ = g.Describe("Client", func() {
 
 			o.Expect(nodes).To(o.HaveLen(3))
 		})
+
+		g.It("check exclude nodes by labels: should ne zero nodes", func() {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(gojenkins.Computers{
+					Computers: []*gojenkins.NodeResponse{
+						{
+							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-android",
+								},
+								{
+									"name": "mac-mini",
+								},
+							},
+						},
+						{
+							DisplayName: "node2",
+							Offline:     true,
+						},
+						{
+							DisplayName: "node4",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "mac-ios",
+								},
+								{
+									"name": "mac-mini",
+								},
+							},
+						},
+					},
+				})
+			})
+
+			wc.opt.ExcludeNodesByLabel = []string{"mac-mini"}
+			computers, err := wc.computers(context.Background())
+			o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+			nodes := wc.getNodes(computers).
+				ExcludeOffline()
+
+			o.Expect(nodes).To(o.HaveLen(0))
+		})
 	})
 })

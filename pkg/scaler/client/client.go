@@ -156,25 +156,7 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 		}
 
-		if labels := c.opt.ExcludeNodesByLabel; len(labels) > 0 {
-			nodes := make([]*gojenkins.NodeResponse, 0)
-		OUTER:
-			for _, node := range computers.Computers {
-				for _, v := range node.AssignedLabels {
-					for _, label := range labels {
-						if v, ok := v["name"]; ok && v == label {
-							continue OUTER
-						}
-					}
-				}
-
-				nodes = append(nodes, node)
-			}
-
-			if len(nodes) > 0 {
-				computers.Computers = nodes
-			}
-		}
+		computers.Computers = excludeNodesByLabel(computers.Computers, c.opt.ExcludeNodesByLabel)
 
 		return computers, nil
 	}()
@@ -186,6 +168,28 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}
 
 	return computers, nil
+}
+
+func excludeNodesByLabel(nodes []*gojenkins.NodeResponse, labels []string) []*gojenkins.NodeResponse {
+	if len(labels) == 0 {
+		return nodes
+	}
+
+	tmpNodes := make([]*gojenkins.NodeResponse, 0)
+OUTER:
+	for _, node := range nodes {
+		for _, v := range node.AssignedLabels {
+			for _, label := range labels {
+				if v, ok := v["name"]; ok && v == label {
+					continue OUTER
+				}
+			}
+		}
+
+		tmpNodes = append(tmpNodes, node)
+	}
+
+	return tmpNodes
 }
 
 func (o *Options) Name() string {

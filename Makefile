@@ -2,7 +2,7 @@ VERSION?=development
 
 .PHONE: install
 install:
-	@echo "==> Installing binary...${FOO_POO} ${VERSION}"
+	@echo "==> Installing binary... ${VERSION}"
 	@go install \
 		--ldflags="-s -w \
 			-X github.com/bringg/jenkins-autoscaler/cmd.version=${VERSION}" \
