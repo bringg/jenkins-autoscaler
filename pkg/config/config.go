@@ -75,7 +75,7 @@ var (
 		},
 		{
 			Name:     "exclude_nodes_by_label",
-			Help:     "jenkins exclude nodes by label",
+			Help:     "exclude jenkins nodes by label",
 			NoPrefix: true,
 		},
 		{
