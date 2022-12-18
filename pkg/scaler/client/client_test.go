@@ -249,10 +249,6 @@ var _ = g.Describe("Client", func() {
 							},
 						},
 						{
-							DisplayName: "node2",
-							Offline:     true,
-						},
-						{
 							DisplayName: "node4",
 							AssignedLabels: []map[string]string{
 								{
@@ -269,12 +265,9 @@ var _ = g.Describe("Client", func() {
 
 			wc.opt.ExcludeNodesByLabel = []string{"mac-mini"}
 			computers, err := wc.computers(context.Background())
+
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
-
-			nodes := wc.getNodes(computers).
-				ExcludeOffline()
-
-			o.Expect(nodes).To(o.HaveLen(0))
+			o.Expect(wc.getNodes(computers)).To(o.HaveLen(0))
 		})
 	})
 })
