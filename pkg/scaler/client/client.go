@@ -12,6 +12,7 @@ import (
 	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rclone/rclone/fs"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 )
 
@@ -175,21 +176,12 @@ func excludeNodesByLabel(nodes []*gojenkins.NodeResponse, labels []string) []*go
 		return nodes
 	}
 
-	tmpNodes := make([]*gojenkins.NodeResponse, 0)
-OUTER:
-	for _, node := range nodes {
-		for _, v := range node.AssignedLabels {
-			for _, label := range labels {
-				if v, ok := v["name"]; ok && v == label {
-					continue OUTER
-				}
-			}
-		}
-
-		tmpNodes = append(tmpNodes, node)
-	}
-
-	return tmpNodes
+	return lo.Filter(nodes, func(node *gojenkins.NodeResponse, i int) bool {
+		return lo.NoneBy(node.AssignedLabels, func(item map[string]string) bool {
+			v, ok := item["name"]
+			return ok && lo.Contains(labels, v)
+		})
+	})
 }
 
 func (o *Options) Name() string {
