@@ -233,7 +233,7 @@ var _ = g.Describe("Client", func() {
 			o.Expect(nodes).To(o.HaveLen(3))
 		})
 
-		g.It("check exclude nodes by labels: should ne zero nodes", func() {
+		g.It("check exclude nodes by labels: should be zero nodes", func() {
 			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					Computers: []*gojenkins.NodeResponse{
