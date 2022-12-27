@@ -2,14 +2,14 @@ VERSION?=development
 
 .PHONE: install
 install:
-	@echo "==> Installing binary...${FOO_POO} ${VERSION}"
+	@echo "==> Installing binary... ${VERSION}"
 	@go install \
 		--ldflags="-s -w \
 			-X github.com/bringg/jenkins-autoscaler/cmd.version=${VERSION}" \
 		./cmd/jas/
 
 .PHONY: test
-test: ginkgo_run_args = -r --always-emit-ginkgo-writer --randomize-all --randomize-suites --fail-on-pending --timeout=120s --race --cover --trace --compilers=2 -coverprofile=cover.out --output-dir=. --junit-report=junit.xml
+test: ginkgo_run_args = -r -v --randomize-all --randomize-suites --fail-on-pending --timeout=120s --race --cover --trace --compilers=2 -coverprofile=cover.out --output-dir=. --junit-report=junit.xml
 test: lint
 	@echo "==> Running tests..."
 	@ginkgo ${ginkgo_run_args} $(ARGS)

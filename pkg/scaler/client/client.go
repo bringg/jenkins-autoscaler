@@ -11,6 +11,8 @@ import (
 
 	"github.com/bndr/gojenkins"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/rclone/rclone/fs"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,12 +34,13 @@ type (
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL         string        `config:"jenkins_url" validate:"required"`
-		JenkinsUser        string        `config:"jenkins_user" validate:"required"`
-		JenkinsToken       string        `config:"jenkins_token" validate:"required"`
-		ControllerNodeName string        `config:"controller_node_name"`
-		NodeNumExecutors   int64         `config:"node_num_executors"`
-		LastErrBackoff     time.Duration `config:"last_err_backoff"`
+		JenkinsURL          string          `config:"jenkins_url" validate:"required"`
+		JenkinsUser         string          `config:"jenkins_user" validate:"required"`
+		JenkinsToken        string          `config:"jenkins_token" validate:"required"`
+		ControllerNodeName  string          `config:"controller_node_name"`
+		NodeNumExecutors    int64           `config:"node_num_executors"`
+		ExcludeNodesByLabel fs.CommaSepList `config:"exclude_nodes_by_label"`
+		LastErrBackoff      time.Duration   `config:"last_err_backoff"`
 	}
 )
 
@@ -154,6 +157,8 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 		}
 
+		computers.Computers = excludeNodesByLabel(computers.Computers, c.opt.ExcludeNodesByLabel)
+
 		return computers, nil
 	}()
 
@@ -164,6 +169,19 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}
 
 	return computers, nil
+}
+
+func excludeNodesByLabel(nodes []*gojenkins.NodeResponse, labels []string) []*gojenkins.NodeResponse {
+	if len(labels) == 0 {
+		return nodes
+	}
+
+	return lo.Filter(nodes, func(node *gojenkins.NodeResponse, i int) bool {
+		return lo.NoneBy(node.AssignedLabels, func(item map[string]string) bool {
+			v, ok := item["name"]
+			return ok && lo.Contains(labels, v)
+		})
+	})
 }
 
 func (o *Options) Name() string {
