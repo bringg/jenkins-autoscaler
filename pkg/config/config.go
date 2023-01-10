@@ -74,20 +74,15 @@ var (
 			Required:   true,
 		},
 		{
-			Name:     "exclude_nodes_by_label",
-			Help:     "exclude jenkins nodes by label",
+			Name:     "jenkins_node_label",
+			Help:     "only nodes with this label will be used",
+			Default:  "JAS",
 			NoPrefix: true,
 		},
 		{
 			Name:     "metrics_server_addr",
 			Help:     "address of http metrics server",
 			Default:  ":8080",
-			NoPrefix: true,
-		},
-		{
-			Name:     "controller_node_name",
-			Help:     "built-in Jenkins node (aka master)",
-			Default:  "Built-In Node",
 			NoPrefix: true,
 		},
 		{

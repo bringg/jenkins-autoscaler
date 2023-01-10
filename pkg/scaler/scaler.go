@@ -52,12 +52,12 @@ type (
 	Options struct {
 		DryRun                                 bool        `config:"dry_run"`
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
-		ControllerNodeName                     string      `config:"controller_node_name"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
 		ScaleDownThreshold                     int64       `config:"scale_down_threshold"`
+		NodeNumExecutors                       int64       `config:"node_num_executors"`
 		ScaleUpGracePeriod                     fs.Duration `config:"scale_up_grace_period"`
 		ScaleDownGracePeriod                   fs.Duration `config:"scale_down_grace_period"`
 		ScaleDownGracePeriodDuringWorkingHours fs.Duration `config:"scale_down_grace_period_during_working_hours"`
@@ -159,14 +159,13 @@ func (s *Scaler) Do(ctx context.Context) {
 
 	logger := s.logger
 
-	usage, err := s.client.GetCurrentUsage(ctx)
+	// get backend instances to calculate usage
+	ins, err := s.backend.Instances()
 	if err != nil {
-		logger.Errorf("can't get current jenkins usage: %v", err)
+		logger.Errorf("can't get backend instances: %v", err)
 
 		return
 	}
-
-	logger.Debugf("current nodes usage is %d%%", usage)
 
 	nodes, err := s.client.GetAllNodes(s.ctx)
 	if err != nil {
@@ -176,8 +175,11 @@ func (s *Scaler) Do(ctx context.Context) {
 	}
 
 	nodes = nodes.
-		ExcludeNode(s.opt.ControllerNodeName).
 		ExcludeOffline()
+
+	usage := s.getCurrentUsage(nodes)
+
+	logger.Debugf("current nodes usage is %d%%", usage)
 
 	if nodes.Len() > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
@@ -199,7 +201,7 @@ func (s *Scaler) Do(ctx context.Context) {
 
 		s.metrics.numScaleDowns.WithLabelValues(s.backend.Name()).Inc()
 
-		if err := s.scaleDown(nodes); err != nil {
+		if err := s.scaleDown(nodes, ins); err != nil {
 			s.metrics.numFailedScaleDowns.WithLabelValues(s.backend.Name()).Inc()
 
 			logger.Error(err)
@@ -269,7 +271,7 @@ func (s *Scaler) scaleUp(usage int64) error {
 }
 
 // scaleDown check if need to scale down nodes.
-func (s *Scaler) scaleDown(nodes client.Nodes) error {
+func (s *Scaler) scaleDown(nodes client.Nodes, instances backend.Instances) error {
 	logger := s.logger
 	isWH := s.isWorkingHour()
 	lastScaleDown := time.Since(s.lastScaleDown)
@@ -290,7 +292,7 @@ func (s *Scaler) scaleDown(nodes client.Nodes) error {
 
 	for _, node := range nodes {
 		name := node.GetName()
-		if err := s.removeNode(name); err != nil {
+		if err := s.removeNode(name, instances); err != nil {
 			if errors.Is(err, ErrNodeInUse) {
 				s.logger.Debugf("node name %s: %v", name, err)
 
@@ -399,7 +401,7 @@ func (s *Scaler) isWorkingHour() bool {
 }
 
 // removeNode remove the given node name from jenkins and from the cloud.
-func (s *Scaler) removeNode(name string) error {
+func (s *Scaler) removeNode(name string, instances backend.Instances) error {
 	node, err := s.client.GetNode(s.ctx, name)
 	if err != nil {
 		return err
@@ -420,11 +422,6 @@ func (s *Scaler) removeNode(name string) error {
 
 	if !ok {
 		return errors.New("can't delete node from jenkins cluster")
-	}
-
-	instances, err := s.backend.Instances()
-	if err != nil {
-		return err
 	}
 
 	if ins, ok := instances[name]; ok {
@@ -461,9 +458,6 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	if err != nil {
 		return err
 	}
-
-	nodes = nodes.
-		ExcludeNode(s.opt.ControllerNodeName)
 
 	instances, err := s.backend.Instances()
 	if err != nil {
@@ -504,6 +498,26 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	}
 
 	return errs
+}
+
+// getCurrentUsage return the current usage of jenkins nodes.
+func (s *Scaler) getCurrentUsage(nodes client.Nodes) int64 {
+	busyExecutors := 0
+	for _, node := range nodes {
+		for _, executor := range node.Raw.Executors {
+			if !executor.Idle {
+				busyExecutors++
+			}
+		}
+	}
+
+	currentUsage := (float64(busyExecutors) / float64(nodes.Len()*s.opt.NodeNumExecutors)) * 100
+
+	if math.IsNaN(currentUsage) || math.IsInf(currentUsage, 0) {
+		return 0
+	}
+
+	return int64(currentUsage)
 }
 
 // findInstancesToDelete get instances that missing in jenkins and lunchTime is more then specified duration.

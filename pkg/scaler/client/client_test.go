@@ -23,8 +23,7 @@ var _ = g.Describe("Client", func() {
 		ts = httptest.NewServer(mux)
 
 		opts = &Options{
-			NodeNumExecutors:   4,
-			ControllerNodeName: "Built-In Node",
+			JenkinsNodeLabel: "JAS",
 		}
 
 		wc = New(opts)
@@ -38,7 +37,7 @@ var _ = g.Describe("Client", func() {
 		ts.Close()
 	})
 
-	g.Describe("GetCurrentUsage", func() {
+	g.Describe("GetAllNodes", func() {
 		g.It("jenkins server not available", func() {
 			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
@@ -46,11 +45,11 @@ var _ = g.Describe("Client", func() {
 
 			wc.opt.LastErrBackoff = 1 * time.Minute
 
-			usage, err := wc.GetCurrentUsage(context.Background())
-			o.Expect(err).To(o.HaveOccurred())
-			o.Expect(usage).To(o.BeZero())
-
 			nodes, err := wc.GetAllNodes(context.Background())
+			o.Expect(err).To(o.HaveOccurred())
+			o.Expect(nodes).To(o.BeNil())
+
+			nodes, err = wc.GetAllNodes(context.Background())
 			o.Expect(err).To(o.HaveOccurred())
 			o.Expect(nodes).To(o.BeNil())
 			o.Expect(err.Error()).To(o.ContainSubstring("request rejected because jenkins API was in-accessible"))
@@ -63,18 +62,45 @@ var _ = g.Describe("Client", func() {
 					Computers: []*gojenkins.NodeResponse{
 						{
 							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node1",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
+						},
+						{
+							DisplayName: "node3",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node3",
+								},
+								{
+									"name": "mac-ios",
+								},
+							},
 						},
 						{
 							DisplayName: "node2",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node2",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 					},
 				})
 			})
 
-			usage, err := wc.GetCurrentUsage(context.Background())
+			nodes, err := wc.GetAllNodes(context.Background())
 
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
-			o.Expect(usage).To(o.Equal(int64(62)))
+			o.Expect(nodes.Len()).To(o.Equal(int64(2)))
 		})
 
 	})
@@ -86,12 +112,36 @@ var _ = g.Describe("Client", func() {
 					Computers: []*gojenkins.NodeResponse{
 						{
 							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node1",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
 							DisplayName: "node2",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node2",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
-							DisplayName: opts.ControllerNodeName,
+							DisplayName: "node7",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node7",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 					},
 				})
@@ -102,9 +152,9 @@ var _ = g.Describe("Client", func() {
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
 
 			nodes := wc.getNodes(computers).
-				ExcludeNode(opts.ControllerNodeName)
+				ExcludeNode("node2")
 
-			o.Expect(nodes).ShouldNot(o.HaveKey(opts.ControllerNodeName))
+			o.Expect(nodes).ShouldNot(o.HaveKey("node2"))
 		})
 
 		g.It("check ExcludeOffline function", func() {
@@ -113,20 +163,60 @@ var _ = g.Describe("Client", func() {
 					Computers: []*gojenkins.NodeResponse{
 						{
 							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node1",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
 							DisplayName: "node2",
 							Offline:     true,
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node2",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
 							DisplayName: "node3",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node3",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
 							DisplayName: "node4",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node4",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 						{
 							DisplayName: "node5",
 							Offline:     true,
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node5",
+								},
+								{
+									"name": opts.JenkinsNodeLabel,
+								},
+							},
 						},
 					},
 				})
@@ -142,132 +232,9 @@ var _ = g.Describe("Client", func() {
 			o.Expect(nodes).To(o.HaveLen(3))
 			o.Expect(nodes).To(o.HaveEach(o.HaveField("Raw.Offline", false)))
 		})
+	})
 
-		g.It("check exclude nodes by labels: node with label exist", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
-				json.NewEncoder(w).Encode(gojenkins.Computers{
-					Computers: []*gojenkins.NodeResponse{
-						{
-							DisplayName: "node1",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-android",
-								},
-							},
-						},
-						{
-							DisplayName: "node2",
-							Offline:     true,
-						},
-						{
-							DisplayName: "node3",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-ios",
-								},
-							},
-						},
-						{
-							DisplayName: "node4",
-						},
-						{
-							DisplayName: "node5",
-							Offline:     true,
-						},
-					},
-				})
-			})
-
-			wc.opt.ExcludeNodesByLabel = []string{"mac-ios"}
-			computers, err := wc.computers(context.Background())
-			o.Expect(err).To(o.Not(o.HaveOccurred()))
-
-			nodes := wc.getNodes(computers).
-				ExcludeOffline()
-
-			o.Expect(nodes).To(o.HaveLen(2))
-		})
-
-		g.It("check exclude nodes by labels: node with label missing", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
-				json.NewEncoder(w).Encode(gojenkins.Computers{
-					Computers: []*gojenkins.NodeResponse{
-						{
-							DisplayName: "node1",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-android",
-								},
-							},
-						},
-						{
-							DisplayName: "node2",
-							Offline:     true,
-						},
-						{
-							DisplayName: "node3",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-ios",
-								},
-							},
-						},
-						{
-							DisplayName: "node4",
-						},
-						{
-							DisplayName: "node5",
-							Offline:     true,
-						},
-					},
-				})
-			})
-
-			wc.opt.ExcludeNodesByLabel = []string{"missing"}
-			computers, err := wc.computers(context.Background())
-			o.Expect(err).To(o.Not(o.HaveOccurred()))
-
-			nodes := wc.getNodes(computers).
-				ExcludeOffline()
-
-			o.Expect(nodes).To(o.HaveLen(3))
-		})
-
-		g.It("check exclude nodes by labels: should be zero nodes", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
-				json.NewEncoder(w).Encode(gojenkins.Computers{
-					Computers: []*gojenkins.NodeResponse{
-						{
-							DisplayName: "node1",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-android",
-								},
-								{
-									"name": "mac-mini",
-								},
-							},
-						},
-						{
-							DisplayName: "node4",
-							AssignedLabels: []map[string]string{
-								{
-									"name": "mac-ios",
-								},
-								{
-									"name": "mac-mini",
-								},
-							},
-						},
-					},
-				})
-			})
-
-			wc.opt.ExcludeNodesByLabel = []string{"mac-mini"}
-			computers, err := wc.computers(context.Background())
-
-			o.Expect(err).To(o.Not(o.HaveOccurred()))
-			o.Expect(wc.getNodes(computers)).To(o.HaveLen(0))
-		})
+	g.Describe("Nodes", func() {
+		g.It("", func() {})
 	})
 })
