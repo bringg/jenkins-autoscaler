@@ -52,7 +52,8 @@ var _ = g.Describe("Scaler", func() {
 			cfg.Set("jenkins_url", "http://foo.poo")
 			cfg.Set("jenkins_user", "foo")
 			cfg.Set("jenkins_token", "poo")
-			cfg.Set("jenkins_node_label", "JAS")
+			cfg.Set("controller_node_name", "Built-In Node")
+			cfg.Set("find_by_node_label_name", "JAS")
 			cfg.Set("run_interval", "1s")
 			cfg.Set("node_num_executors", "4")
 			cfg.Set("gc_run_interval", "1s")
@@ -140,9 +141,8 @@ var _ = g.Describe("Scaler", func() {
 				defer s.Close()
 
 				opts := &jclient.Options{
-					JenkinsURL:       s.URL,
-					LastErrBackoff:   1 * time.Minute,
-					JenkinsNodeLabel: "JAS",
+					JenkinsURL:     s.URL,
+					LastErrBackoff: 1 * time.Minute,
 				}
 
 				scal.client = jclient.New(opts)
@@ -172,8 +172,30 @@ var _ = g.Describe("Scaler", func() {
 				o.Expect(err).To(o.Not(o.HaveOccurred()))
 			})
 
-			g.It("clear 2 instances not registered in jenkins", func() {
-				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3), nil).Times(1)
+			g.It("clear 3 instances not registered in jenkins without label", func() {
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(4), nil).Times(1)
+				// provider will decrease instances to 4
+				bk.EXPECT().Instances().Return(MakeFakeInstances(7), nil).Times(1)
+				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
+					o.Expect(ins).To(o.HaveLen(3))
+
+					return nil
+				}).Times(1)
+
+				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
+
+				cfg.Set("find_by_node_label_name", "")
+
+				scal, err = New(cfg, bk, logger, metrics)
+				o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+				scal.client = client
+
+				scal.GC(ctx)
+			})
+
+			g.It("clear 2 instances not registered in jenkins with label", func() {
+				client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(3, WithLabels([]string{"JAS"})), nil).Times(1)
 				// provider will decrease instances to 3
 				bk.EXPECT().Instances().Return(MakeFakeInstances(5), nil).Times(1)
 				bk.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ins backend.Instances) error {
@@ -199,7 +221,10 @@ var _ = g.Describe("Scaler", func() {
 			})
 
 			g.It("clear also if node is exist but in offline", func() {
-				nodes := MergeFakeTypes(MakeFakeNodes(2, WithOffline()), MakeFakeNodes(4))
+				nodes := MergeFakeTypes(
+					MakeFakeNodes(2, WithOffline(), WithLabels([]string{"JAS"})),
+					MakeFakeNodes(4, WithLabels([]string{"JAS"})),
+				)
 
 				// this function should already check if jenkins node is offline and not include it in result but we have another check for sure
 				client.EXPECT().GetAllNodes(gomock.Any()).Return(nodes, nil).Times(1)
@@ -240,6 +265,7 @@ var _ = g.Describe("Scaler", func() {
 			g.Context("scaleUp", func() {
 				g.It("run provider with 1 node, not in working hours, with usage over threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
+					cfg.Set("find_by_node_label_name", "")
 
 					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -248,7 +274,6 @@ var _ = g.Describe("Scaler", func() {
 
 					bk.EXPECT().Instances().Return(MakeFakeInstances(1), nil).Times(1)
 					// 80% usage, and default scale up threshold is 70%
-					// client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(80), nil).Times(1)
 					// no running nodes
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(1, WithBusyExecutors(3)), nil).Times(1)
 
@@ -329,7 +354,6 @@ var _ = g.Describe("Scaler", func() {
 				g.It("run provider with 1 node, in working hours, with usage under threshold", func() {
 					bk.EXPECT().Instances().Return(MakeFakeInstances(1), nil).Times(1)
 					// 45% usage and default scale up threshold is 70%
-					// client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(45), nil).Times(1)
 					// no running nodes
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(1), nil).Times(1)
 					// provider will use default value of 1
@@ -339,6 +363,7 @@ var _ = g.Describe("Scaler", func() {
 				})
 				g.It("run provider with 1 node, not in working hours, with usage under threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
+					cfg.Set("find_by_node_label_name", "")
 
 					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -347,7 +372,6 @@ var _ = g.Describe("Scaler", func() {
 
 					bk.EXPECT().Instances().Return(MakeFakeInstances(1), nil).Times(1)
 					// 45% usage and default scale up threshold is 70%
-					// client.EXPECT().GetCurrentUsage(gomock.Any(), gomock.Any()).Return(int64(45), nil).Times(1)
 					// no running nodes
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(MakeFakeNodes(1), nil).Times(1)
 
@@ -365,7 +389,6 @@ var _ = g.Describe("Scaler", func() {
 					ins := MakeFakeInstances(0)
 					bk.EXPECT().Instances().Return(ins, nil).Times(1)
 					// no usage, cluster is empty of jobs, starting the day
-					// client.EXPECT().GetCurrentUsage(gomock.Any(), ins.Names()).Return(int64(0), nil).Times(1)
 					// no running nodes
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(make(jclient.Nodes), nil).Times(1)
 					// provider will use default value of 1
@@ -378,7 +401,6 @@ var _ = g.Describe("Scaler", func() {
 					ins := MakeFakeInstances(0)
 					bk.EXPECT().Instances().Return(ins, nil).Times(1)
 					// no usage, cluster is empty of jobs, starting the day
-					// client.EXPECT().GetCurrentUsage(gomock.Any(), ins.Names()).Return(int64(0), nil).Times(1)
 					// no running nodes
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(make(jclient.Nodes), nil).Times(1)
 					// provider will use default value of 2

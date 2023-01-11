@@ -53,6 +53,8 @@ type (
 		DryRun                                 bool        `config:"dry_run"`
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
+		ControllerNodeName                     string      `config:"controller_node_name"`
+		FindByNodeLabelName                    string      `config:"find_by_node_label_name"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -175,7 +177,9 @@ func (s *Scaler) Do(ctx context.Context) {
 	}
 
 	nodes = nodes.
-		ExcludeOffline()
+		ExcludeNode(s.opt.ControllerNodeName).
+		ExcludeOffline().
+		KeepWithLabel(s.opt.FindByNodeLabelName)
 
 	usage := s.getCurrentUsage(nodes)
 
@@ -458,6 +462,10 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 	if err != nil {
 		return err
 	}
+
+	nodes = nodes.
+		ExcludeNode(s.opt.ControllerNodeName).
+		KeepWithLabel(s.opt.FindByNodeLabelName)
 
 	instances, err := s.backend.Instances()
 	if err != nil {

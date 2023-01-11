@@ -22,9 +22,7 @@ var _ = g.Describe("Client", func() {
 		mux = http.NewServeMux()
 		ts = httptest.NewServer(mux)
 
-		opts = &Options{
-			JenkinsNodeLabel: "JAS",
-		}
+		opts = &Options{}
 
 		wc = New(opts)
 		wc.Jenkins = gojenkins.CreateJenkins(
@@ -61,13 +59,18 @@ var _ = g.Describe("Client", func() {
 					BusyExecutors: 5,
 					Computers: []*gojenkins.NodeResponse{
 						{
+							DisplayName: "Built-In Node",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "Built-In Node",
+								},
+							},
+						},
+						{
 							DisplayName: "node1",
 							AssignedLabels: []map[string]string{
 								{
 									"name": "node1",
-								},
-								{
-									"name": opts.JenkinsNodeLabel,
 								},
 							},
 						},
@@ -88,16 +91,18 @@ var _ = g.Describe("Client", func() {
 								{
 									"name": "node2",
 								},
-								{
-									"name": opts.JenkinsNodeLabel,
-								},
 							},
+							Offline: true,
 						},
 					},
 				})
 			})
 
 			nodes, err := wc.GetAllNodes(context.Background())
+
+			nodes = nodes.
+				ExcludeNode("Built-In Node").
+				ExcludeOffline()
 
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
 			o.Expect(nodes.Len()).To(o.Equal(int64(2)))
@@ -106,7 +111,7 @@ var _ = g.Describe("Client", func() {
 	})
 
 	g.Describe("getNodes", func() {
-		g.It("check ExcludeNode function", func() {
+		g.It("check KeepWithLabel function", func() {
 			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					Computers: []*gojenkins.NodeResponse{
@@ -115,9 +120,6 @@ var _ = g.Describe("Client", func() {
 							AssignedLabels: []map[string]string{
 								{
 									"name": "node1",
-								},
-								{
-									"name": opts.JenkinsNodeLabel,
 								},
 							},
 						},
@@ -128,7 +130,7 @@ var _ = g.Describe("Client", func() {
 									"name": "node2",
 								},
 								{
-									"name": opts.JenkinsNodeLabel,
+									"name": "JAS",
 								},
 							},
 						},
@@ -138,8 +140,60 @@ var _ = g.Describe("Client", func() {
 								{
 									"name": "node7",
 								},
+							},
+						},
+						{
+							DisplayName: "node44",
+							AssignedLabels: []map[string]string{
 								{
-									"name": opts.JenkinsNodeLabel,
+									"name": "node44",
+								},
+								{
+									"name": "JAS",
+								},
+							},
+						},
+					},
+				})
+			})
+
+			computers, err := wc.computers(context.Background())
+
+			o.Expect(err).To(o.Not(o.HaveOccurred()))
+
+			nodes := wc.getNodes(computers).
+				KeepWithLabel("JAS")
+
+			o.Expect(nodes.Len()).To(o.Equal(int64(2)))
+			o.Expect(nodes).ShouldNot(o.HaveKey("node7"))
+			o.Expect(nodes).ShouldNot(o.HaveKey("node1"))
+		})
+
+		g.It("check ExcludeNode function", func() {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode(gojenkins.Computers{
+					Computers: []*gojenkins.NodeResponse{
+						{
+							DisplayName: "node1",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node1",
+								},
+							},
+						},
+						{
+							DisplayName: "node2",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node2",
+								},
+							},
+						},
+						{
+							DisplayName: "node7",
+							AssignedLabels: []map[string]string{
+								{
+									"name": "node7",
 								},
 							},
 						},
@@ -167,9 +221,6 @@ var _ = g.Describe("Client", func() {
 								{
 									"name": "node1",
 								},
-								{
-									"name": opts.JenkinsNodeLabel,
-								},
 							},
 						},
 						{
@@ -179,9 +230,6 @@ var _ = g.Describe("Client", func() {
 								{
 									"name": "node2",
 								},
-								{
-									"name": opts.JenkinsNodeLabel,
-								},
 							},
 						},
 						{
@@ -189,9 +237,6 @@ var _ = g.Describe("Client", func() {
 							AssignedLabels: []map[string]string{
 								{
 									"name": "node3",
-								},
-								{
-									"name": opts.JenkinsNodeLabel,
 								},
 							},
 						},
@@ -201,9 +246,6 @@ var _ = g.Describe("Client", func() {
 								{
 									"name": "node4",
 								},
-								{
-									"name": opts.JenkinsNodeLabel,
-								},
 							},
 						},
 						{
@@ -212,9 +254,6 @@ var _ = g.Describe("Client", func() {
 							AssignedLabels: []map[string]string{
 								{
 									"name": "node5",
-								},
-								{
-									"name": opts.JenkinsNodeLabel,
 								},
 							},
 						},

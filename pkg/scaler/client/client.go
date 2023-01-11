@@ -32,11 +32,10 @@ type (
 	Nodes map[string]*gojenkins.Node
 
 	Options struct {
-		JenkinsURL       string        `config:"jenkins_url" validate:"required"`
-		JenkinsUser      string        `config:"jenkins_user" validate:"required"`
-		JenkinsToken     string        `config:"jenkins_token" validate:"required"`
-		JenkinsNodeLabel string        `config:"jenkins_node_label"`
-		LastErrBackoff   time.Duration `config:"last_err_backoff"`
+		JenkinsURL     string        `config:"jenkins_url" validate:"required"`
+		JenkinsUser    string        `config:"jenkins_user" validate:"required"`
+		JenkinsToken   string        `config:"jenkins_token" validate:"required"`
+		LastErrBackoff time.Duration `config:"last_err_backoff"`
 	}
 )
 
@@ -107,6 +106,19 @@ func (n Nodes) ExcludeNode(name string) Nodes {
 	return nodes
 }
 
+func (n Nodes) KeepWithLabel(label string) Nodes {
+	if label == "" {
+		return n
+	}
+
+	return lo.PickBy(n, func(name string, node *gojenkins.Node) bool {
+		return lo.ContainsBy(node.Raw.AssignedLabels, func(item map[string]string) bool {
+			v, ok := item["name"]
+			return ok && strings.Compare(v, label) == 0
+		})
+	})
+}
+
 func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, error) {
 	lastErr := time.Since(c.lastErr)
 	lastErrBackoff := c.opt.LastErrBackoff
@@ -133,9 +145,6 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 			return nil, fmt.Errorf("api response status code %d, body dump: %q", res.StatusCode, body)
 		}
 
-		// get nodes only related to JAS
-		computers.Computers = c.onlyBackendNodes(computers.Computers)
-
 		return computers, nil
 	}()
 
@@ -146,15 +155,6 @@ func (c *WrapperClient) computers(ctx context.Context) (*gojenkins.Computers, er
 	}
 
 	return computers, nil
-}
-
-func (c *WrapperClient) onlyBackendNodes(nodes []*gojenkins.NodeResponse) []*gojenkins.NodeResponse {
-	return lo.Filter(nodes, func(node *gojenkins.NodeResponse, i int) bool {
-		return lo.ContainsBy(node.AssignedLabels, func(item map[string]string) bool {
-			v, ok := item["name"]
-			return ok && strings.Compare(v, c.opt.JenkinsNodeLabel) == 0
-		})
-	})
 }
 
 func (o *Options) Name() string {
