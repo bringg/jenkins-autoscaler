@@ -53,7 +53,7 @@ var _ = g.Describe("Scaler", func() {
 			cfg.Set("jenkins_user", "foo")
 			cfg.Set("jenkins_token", "poo")
 			cfg.Set("controller_node_name", "Built-In Node")
-			cfg.Set("node_with_label", "JAS")
+			cfg.Set("nodes_with_label", "JAS")
 			cfg.Set("run_interval", "1s")
 			cfg.Set("node_num_executors", "4")
 			cfg.Set("gc_run_interval", "1s")
@@ -184,7 +184,7 @@ var _ = g.Describe("Scaler", func() {
 
 				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
 
-				cfg.Set("node_with_label", "")
+				cfg.Set("nodes_with_label", "")
 
 				scal, err = New(cfg, bk, logger, metrics)
 				o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -265,7 +265,7 @@ var _ = g.Describe("Scaler", func() {
 			g.Context("scaleUp", func() {
 				g.It("run provider with 1 node, not in working hours, with usage over threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
-					cfg.Set("node_with_label", "")
+					cfg.Set("nodes_with_label", "")
 
 					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -363,7 +363,7 @@ var _ = g.Describe("Scaler", func() {
 				})
 				g.It("run provider with 1 node, not in working hours, with usage under threshold", func() {
 					cfg.Set("working_hours_cron_expressions", "@yearly")
-					cfg.Set("node_with_label", "")
+					cfg.Set("nodes_with_label", "")
 
 					scal, err = New(cfg, bk, logger, metrics)
 					o.Expect(err).To(o.Not(o.HaveOccurred()))
@@ -489,7 +489,7 @@ var _ = g.Describe("Scaler", func() {
 				client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).Return(false, nil).Times(3)
 
 				o.Expect(sclr.scaleDown(nodes, MakeFakeInstances(3))).To(o.Not(o.HaveOccurred()))
-				o.Expect(buffer).To(gbytes.Say("failed destroying .* with error can't delete node from jenkins cluster. continue to next node"))
+				o.Expect(buffer).To(gbytes.Say("failed destroying .* with error can't delete node from jenkins. continue to next node"))
 				o.Expect(buffer).To(gbytes.Say("no idle node was found"))
 			})
 
@@ -548,7 +548,7 @@ var _ = g.Describe("Scaler", func() {
 				}).Times(1)
 
 				o.Expect(sclr.scaleDown(nodes, MakeFakeInstances(3))).To(o.Not(o.HaveOccurred()))
-				o.Expect(buffer).To(gbytes.Say("node .* was removed from cluster"))
+				o.Expect(buffer).To(gbytes.Say("instance .* was removed from the backen"))
 				o.Expect(buffer).ShouldNot((gbytes.Say("no idle node was found")))
 			})
 		})

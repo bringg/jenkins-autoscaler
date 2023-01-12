@@ -54,7 +54,7 @@ type (
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
-		NodeWithLabel                          string      `config:"node_with_label"`
+		NodeWithLabel                          string      `config:"nodes_with_label"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -425,7 +425,7 @@ func (s *Scaler) removeNode(name string, instances backend.Instances) error {
 	}
 
 	if !ok {
-		return errors.New("can't delete node from jenkins cluster")
+		return errors.New("can't delete node from jenkins")
 	}
 
 	if ins, ok := instances[name]; ok {
@@ -435,7 +435,7 @@ func (s *Scaler) removeNode(name string, instances backend.Instances) error {
 
 		s.lastScaleDown = time.Now()
 
-		s.logger.Infof("node %s was removed from cluster", name)
+		s.logger.Infof("instance %s was removed from the backend", name)
 
 		return nil
 	}

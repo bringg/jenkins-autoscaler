@@ -74,7 +74,7 @@ var (
 			Required:   true,
 		},
 		{
-			Name:     "node_with_label",
+			Name:     "nodes_with_label",
 			Help:     "target only nodes with the specified label",
 			NoPrefix: true,
 		},
