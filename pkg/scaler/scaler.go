@@ -54,7 +54,7 @@ type (
 		DisableWorkingHours                    bool        `config:"disable_working_hours"`
 		WorkingHoursCronExpressions            string      `config:"working_hours_cron_expressions"`
 		ControllerNodeName                     string      `config:"controller_node_name"`
-		FindByNodeLabelName                    string      `config:"find_by_node_label_name"`
+		NodeWithLabel                          string      `config:"node_with_label"`
 		MaxNodes                               int64       `config:"max_nodes"`
 		MinNodesInWorkingHours                 int64       `config:"min_nodes_during_working_hours"`
 		ScaleUpThreshold                       int64       `config:"scale_up_threshold"`
@@ -179,11 +179,11 @@ func (s *Scaler) Do(ctx context.Context) {
 	nodes = nodes.
 		ExcludeNode(s.opt.ControllerNodeName).
 		ExcludeOffline().
-		KeepWithLabel(s.opt.FindByNodeLabelName)
+		KeepWithLabel(s.opt.NodeWithLabel)
 
 	usage := s.getCurrentUsage(nodes)
 
-	logger.Debugf("current nodes usage is %d%%", usage)
+	logger.Debugf("current utilization of nodes is %d%%", usage)
 
 	if nodes.Len() > 0 && usage > s.opt.ScaleUpThreshold {
 		logger.Infof("current usage is %d%% > %d%% then specified threshold, will try to scale up", usage, s.opt.ScaleUpThreshold)
@@ -465,7 +465,7 @@ func (s *Scaler) gc(ctx context.Context, logger *log.Entry) error {
 
 	nodes = nodes.
 		ExcludeNode(s.opt.ControllerNodeName).
-		KeepWithLabel(s.opt.FindByNodeLabelName)
+		KeepWithLabel(s.opt.NodeWithLabel)
 
 	instances, err := s.backend.Instances()
 	if err != nil {

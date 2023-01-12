@@ -108,15 +108,6 @@ func (i Instances) Len() int64 {
 	return int64(len(i))
 }
 
-func (i Instances) Names() []string {
-	names := make([]string, 0)
-	for name := range i {
-		names = append(names, name)
-	}
-
-	return names
-}
-
 // NewInstances create new map of instances
 func NewInstances() Instances {
 	return make(Instances)

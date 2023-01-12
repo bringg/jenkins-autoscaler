@@ -272,8 +272,4 @@ var _ = g.Describe("Client", func() {
 			o.Expect(nodes).To(o.HaveEach(o.HaveField("Raw.Offline", false)))
 		})
 	})
-
-	g.Describe("Nodes", func() {
-		g.It("", func() {})
-	})
 })

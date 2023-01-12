@@ -74,8 +74,8 @@ var (
 			Required:   true,
 		},
 		{
-			Name:     "find_by_node_label_name",
-			Help:     "only nodes with this label will be used",
+			Name:     "node_with_label",
+			Help:     "target only nodes with the specified label",
 			NoPrefix: true,
 		},
 		{
