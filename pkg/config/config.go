@@ -74,8 +74,8 @@ var (
 			Required:   true,
 		},
 		{
-			Name:     "exclude_nodes_by_label",
-			Help:     "exclude jenkins nodes by label",
+			Name:     "nodes_with_label",
+			Help:     "target only nodes with the specified label",
 			NoPrefix: true,
 		},
 		{

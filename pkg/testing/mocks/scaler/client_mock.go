@@ -66,21 +66,6 @@ func (mr *MockJenkinsAccessorMockRecorder) GetAllNodes(ctx interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllNodes", reflect.TypeOf((*MockJenkinsAccessor)(nil).GetAllNodes), ctx)
 }
 
-// GetCurrentUsage mocks base method.
-func (m *MockJenkinsAccessor) GetCurrentUsage(ctx context.Context) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentUsage", ctx)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCurrentUsage indicates an expected call of GetCurrentUsage.
-func (mr *MockJenkinsAccessorMockRecorder) GetCurrentUsage(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentUsage", reflect.TypeOf((*MockJenkinsAccessor)(nil).GetCurrentUsage), ctx)
-}
-
 // GetNode mocks base method.
 func (m *MockJenkinsAccessor) GetNode(ctx context.Context, name string) (*gojenkins.Node, error) {
 	m.ctrl.T.Helper()

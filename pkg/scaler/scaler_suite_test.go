@@ -40,8 +40,27 @@ func MakeFakeNodes(size int, opts ...NodeOption) client.Nodes {
 
 		nodes[name] = &gojenkins.Node{
 			Raw: &gojenkins.NodeResponse{
+				AssignedLabels: []map[string]string{
+					{
+						"name": name,
+					},
+				},
 				DisplayName: name,
 				Idle:        true,
+				Executors: []*gojenkins.NodeExecutor{
+					{
+						Idle: true,
+					},
+					{
+						Idle: true,
+					},
+					{
+						Idle: true,
+					},
+					{
+						Idle: true,
+					},
+				},
 			},
 		}
 
@@ -77,6 +96,28 @@ func MergeFakeTypes[M ~map[K]V, K string, V any](dst, src M) M {
 func WithOffline() NodeOption {
 	return func(n *gojenkins.Node) {
 		n.Raw.Offline = true
+	}
+}
+
+func WithLabels(labels []string) NodeOption {
+	return func(n *gojenkins.Node) {
+		for _, label := range labels {
+			n.Raw.AssignedLabels = append(n.Raw.AssignedLabels, map[string]string{
+				"name": label,
+			})
+		}
+	}
+}
+
+func WithBusyExecutors(num int) NodeOption {
+	return func(n *gojenkins.Node) {
+		if num > 4 {
+			num = 4
+		}
+
+		for i := 0; i < num; i++ {
+			n.Raw.Executors[i].Idle = false
+		}
 	}
 }
 
