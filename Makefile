@@ -1,5 +1,10 @@
 VERSION?=development
 
+.PHONY: dependencies
+dependencies:
+	@echo "==> Downloading dependencies..."
+	@go mod download
+
 .PHONE: install
 install:
 	@echo "==> Installing binary... ${VERSION}"
@@ -21,13 +26,13 @@ lint:
 
 .PHONY: tools
 tools:
-	@echo "==> installing tools from tools.go..."
+	@echo "==> Installing tools from tools.go..."
 	@awk -F'"' '/_/ {print $$2}' tools/tools.go | xargs -tI % go install %
 
 .PHONY: generate_mocks
 generate_mocks: mocks = ./pkg/testing/mocks
 generate_mocks:
-	@echo "==> generating mocks..."
+	@echo "==> Generating mocks..."
 	@rm -rf ./pkg/testing/mocks
 	@mkdir -p ./pkg/testing/mocks
 	@mockgen -source=./pkg/dispatcher/dispatcher.go -destination=$(mocks)/dispatcher/scaler_mock.go Scalerer

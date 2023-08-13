@@ -106,11 +106,7 @@ func (b *Backend) Terminate(instances backend.Instances) error {
 	}
 
 	_, err := b.srv.RegionInstanceGroupManagers.DeleteInstances(b.opt.Project, b.opt.Region, b.opt.InstanceGroupManagerName, rb).Do()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (b *Backend) CurrentSize() (int64, error) {
