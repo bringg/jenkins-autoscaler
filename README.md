@@ -149,7 +149,7 @@ docker run -it \
 | GC_RUN_INTERVAL                              | Interval of the gc loop                                      |       1h       |    NO    |
 | JENKINS_URL                                  | Jenkins server base url                                      |      N/A       |   YES    |
 | JENKINS_USER                                 | Jenkins username                                             |      N/A       |    NO    |
-| JENKINS_TOKEN                                | Jjenkins api token                                           |      N/A       |    NO    |
+| JENKINS_TOKEN                                | Jenkins api token                                           |      N/A       |    NO    |
 | NODES_WITH_LABEL                             | Target nodes that have the specified label                   |      N/A       |    NO    |
 | METRICS_SERVER_ADDR                          | Address of http metrics server                               |     :8080      |    NO    |
 | CONTROLLER_NODE_NAME                         | The built-in Jenkins node name (aka master)                  | Built-In Node  |    NO    |
