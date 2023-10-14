@@ -115,6 +115,60 @@ backend:
 jas --backend=gce -c ./configs/my-jenkins-autoscaler.yaml
 ```
 
+## Docker
+
+The following configurations can be used when running this in Docker or Kubernetes.
+
+**DOCKER BUILD**
+
+```bash
+docker build --platform linux/amd64 -t jenkins-autoscaler:latest .
+```
+
+**DOCKER RUN**
+
+```bash
+docker run -it \
+  -e BACKEND='aws' \
+  -e JENKINS_URL='https://jenkins.example.com' \
+  -e JENKINS_USER='jenkins@example.com' \
+  -e JENKINS_TOKEN='ed5054431488809e8cb6b35f2e9a7bc3' \
+  -e CONTROLLER_NODE_NAME='master' \
+  -e AWS_AUTOSCALING_GROUP_NAME='jenkins-slaves' \
+	jenkins-autoscaler:latest
+```
+
+**DOCKER ENVIRONMENT VARIABLES**
+
+| Name                                         | Description                                                  |    Default     | Required |
+| -------------------------------------------- | ------------------------------------------------------------ | :------------: | :------: |
+| BACKEND                                      | Backend type. Accepted values are either **gce** or **aws**  |      N/A       |   YES    |
+| DRY_RUN                                      | Enable dry-run mode                                          |      true      |    NO    |
+| LOG_LEVEL                                    | Log level                                                    |     error      |    NO    |
+| RUN_INTERVAL                                 | Interval of the main scaler loop                             |       1m       |    NO    |
+| GC_RUN_INTERVAL                              | Interval of the gc loop                                      |       1h       |    NO    |
+| JENKINS_URL                                  | Jenkins server base url                                      |      N/A       |   YES    |
+| JENKINS_USER                                 | Jenkins username                                             |      N/A       |    NO    |
+| JENKINS_TOKEN                                | Jjenkins api token                                           |      N/A       |    NO    |
+| NODES_WITH_LABEL                             | Target nodes that have the specified label                   |      N/A       |    NO    |
+| METRICS_SERVER_ADDR                          | Address of http metrics server                               |     :8080      |    NO    |
+| CONTROLLER_NODE_NAME                         | The built-in Jenkins node name (aka master)                  | Built-In Node  |    NO    |
+| MAX_NODES                                    | Maximum number of nodes at any given time                    |       1        |    NO    |
+| NODE_NUM_EXECUTORS                           | Number of executors per node                                 |       1        |    NO    |
+| MIN_NODES_DURING_WORKING_HOURS               | The minimum number of nodes to maintain during working hours |       2        |    NO    |
+| SCALE_UP_THRESHOLD                           | The threshold usage percentage for triggering a scale-up     |       70       |    NO    |
+| SCALE_DOWN_THRESHOLD                         | The threshold usage percentage for triggering a scale-down   |       30       |    NO    |
+| SCALE_UP_GRACE_PERIOD                        | The duration to wait before performing another scale-up      |       5m       |    NO    |
+| SCALE_DOWN_GRACE_PERIOD                      | The duration to wait before performing another scale-down    |      10m       |    NO    |
+| SCALE_DOWN_GRACE_PERIOD_DURING_WORKING_HOURS | The cooldown timer duration in minutes for scale-down during working hours |      10m       |    NO    |
+| WORKING_HOURS_CRON_EXPRESSIONS               | The specified cron expression representing the range of working hours | * 5-17 * * 1-5 |    NO    |
+| DISABLE_WORKING_HOURS                        | Do not consider working hours for scaling down               |      true      |    NO    |
+| AWS_AUTOSCALING_GROUP_NAME                   | The AWS autoscaling group name for the jenkins slave nodes. This field is **mandatory** only when the backend is set to **aws** |      N/A       |   YES    |
+| AWS_REGION                                   | AWS region                                                   |   us-east-1    |    NO    |
+| GCE_PROJECT                                  | The GCE project name. This field is **mandatory** only when the backend is set to **gce** |      N/A       |   YES    |
+| GCE_REGION                                   | GCE region                                                   |    us-east1    |    NO    |
+| GCE_INSTANCE_GROUP_MANAGER                   | The GCE instance group manager name for the jenkins slave nodes. This field is **mandatory** only when the backend is set to **gce** |      N/A       |   YES    |
+
 ## Contribution
 
 Feel free to open Pull-Request for small fixes and changes. For bigger changes and new backends please open an issue first to prevent double work and discuss relevant stuff.
