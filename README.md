@@ -135,7 +135,7 @@ docker run -it \
   -e JENKINS_TOKEN='ed5054431488809e8cb6b35f2e9a7bc3' \
   -e CONTROLLER_NODE_NAME='master' \
   -e AWS_AUTOSCALING_GROUP_NAME='jenkins-slaves' \
-	jenkins-autoscaler:latest
+  jenkins-autoscaler:latest
 ```
 
 **DOCKER ENVIRONMENT VARIABLES**
