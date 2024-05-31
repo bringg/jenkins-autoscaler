@@ -99,7 +99,7 @@ var _ = g.Describe("Scaler", func() {
 
 			g.It("should start count on fail from jenkins master api", func() {
 				respErr := true
-				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					if respErr {
 						w.WriteHeader(http.StatusBadRequest)
 					} else {
@@ -328,10 +328,10 @@ var _ = g.Describe("Scaler", func() {
 					// will return current provider running nodes
 					nodes := MakeFakeNodes(5, WithBusyExecutors(1), WithLabels([]string{"JAS"}))
 					client.EXPECT().GetAllNodes(gomock.Any()).Return(nodes, nil).Times(1)
-					client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+					client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (*gojenkins.Node, error) {
 						return nodes[name], nil
 					}).Times(1)
-					client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (bool, error) {
+					client.EXPECT().DeleteNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (bool, error) {
 						delete(nodes, name)
 
 						return true, nil
@@ -467,7 +467,7 @@ var _ = g.Describe("Scaler", func() {
 
 				sclr.client = client
 
-				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, _ string) (*gojenkins.Node, error) {
 					return nil, errors.New("No node found")
 				}).Times(3)
 
@@ -482,7 +482,7 @@ var _ = g.Describe("Scaler", func() {
 
 				sclr.client = client
 
-				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (*gojenkins.Node, error) {
 					return nodes[name], nil
 				}).Times(3)
 
@@ -501,7 +501,7 @@ var _ = g.Describe("Scaler", func() {
 				sclr.client = client
 				sclr.backend = bk
 
-				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (*gojenkins.Node, error) {
 					return nodes[name], nil
 				}).Times(3)
 
@@ -518,7 +518,7 @@ var _ = g.Describe("Scaler", func() {
 
 				sclr.client = client
 
-				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (*gojenkins.Node, error) {
 					return nodes[name], nil
 				}).Times(3)
 
@@ -535,7 +535,7 @@ var _ = g.Describe("Scaler", func() {
 				sclr.client = client
 				sclr.backend = bk
 
-				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, name string) (*gojenkins.Node, error) {
+				client.EXPECT().GetNode(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, name string) (*gojenkins.Node, error) {
 					return nodes[name], nil
 				}).Times(1)
 

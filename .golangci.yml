@@ -23,3 +23,11 @@ linters-settings:
     simple: true
     for-loops: true
     range-loops: true
+
+issues:
+  exclude-rules:
+  # don't complain about dot imports in test files
+  - path: '(.+)_test\.go'
+    text: should not use dot imports
+    linters:
+    - revive

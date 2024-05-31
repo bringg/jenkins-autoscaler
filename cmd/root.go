@@ -30,7 +30,7 @@ var (
 		Use:     "jas",
 		Short:   "jenkins-autoscaler",
 		Version: version,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return operation.AutoScale(cmd.Context(), input)
 		},
 	}

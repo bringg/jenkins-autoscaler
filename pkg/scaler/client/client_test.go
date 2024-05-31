@@ -37,7 +37,7 @@ var _ = g.Describe("Client", func() {
 
 	g.Describe("GetAllNodes", func() {
 		g.It("jenkins server not available", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			})
 
@@ -54,7 +54,7 @@ var _ = g.Describe("Client", func() {
 		})
 
 		g.It("jenkins server available", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, _ *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					BusyExecutors: 5,
 					Computers: []*gojenkins.NodeResponse{
@@ -112,7 +112,7 @@ var _ = g.Describe("Client", func() {
 
 	g.Describe("getNodes", func() {
 		g.It("check KeepWithLabel function", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, _ *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					Computers: []*gojenkins.NodeResponse{
 						{
@@ -170,7 +170,7 @@ var _ = g.Describe("Client", func() {
 		})
 
 		g.It("check ExcludeNode function", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, _ *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					Computers: []*gojenkins.NodeResponse{
 						{
@@ -212,7 +212,7 @@ var _ = g.Describe("Client", func() {
 		})
 
 		g.It("check ExcludeOffline function", func() {
-			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/computer/api/json", func(w http.ResponseWriter, _ *http.Request) {
 				json.NewEncoder(w).Encode(gojenkins.Computers{
 					Computers: []*gojenkins.NodeResponse{
 						{

@@ -139,19 +139,19 @@ func (b *Backend) Instances() (backend.Instances, error) {
 		return nil, err
 	}
 
-	instanceIds := make([]string, len(group.Instances))
+	instanceIDs := make([]string, len(group.Instances))
 	for i, instance := range group.Instances {
-		instanceIds[i] = *instance.InstanceId
+		instanceIDs[i] = *instance.InstanceId
 	}
 
 	// if we gonna pass empty ids to api it will return any instances not related to group...
-	instances := make(backend.Instances, len(instanceIds))
-	if len(instanceIds) == 0 {
+	instances := make(backend.Instances, len(instanceIDs))
+	if len(instanceIDs) == 0 {
 		return instances, nil
 	}
 
 	result, err := b.ec2Client.DescribeInstances(b.ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: instanceIds,
+		InstanceIds: instanceIDs,
 	})
 	if err != nil {
 		return nil, err

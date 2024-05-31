@@ -111,7 +111,7 @@ func (n Nodes) KeepWithLabel(label string) Nodes {
 		return n
 	}
 
-	return lo.PickBy(n, func(name string, node *gojenkins.Node) bool {
+	return lo.PickBy(n, func(_ string, node *gojenkins.Node) bool {
 		return lo.ContainsBy(node.Raw.AssignedLabels, func(item map[string]string) bool {
 			v, ok := item["name"]
 			return ok && strings.Compare(v, label) == 0
