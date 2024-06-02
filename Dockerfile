@@ -1,4 +1,4 @@
-FROM golang:1.21.0-alpine as builder
+FROM golang:1.22.0-alpine as builder
 
 ARG VERSION=development
 ENV VERSION=$VERSION

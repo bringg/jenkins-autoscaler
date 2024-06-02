@@ -53,7 +53,7 @@ make install
 jas --help # to see all options
 ```
 
-example how to run in gce
+example how to run in `gce`
 
 ```bash
 
@@ -67,7 +67,7 @@ jas  \
     --jenkins-token=jenkins6user6token6here
 ```
 
-example how to run in aws
+example how to run in `aws`
 
 ```bash
 
@@ -121,7 +121,4 @@ Feel free to open Pull-Request for small fixes and changes. For bigger changes a
 
 ## License
 
--------
-
-This is free software under the terms of the MIT the license (check the
-[LICENSE file](/LICENSE) included in this package).
+Licensed under the MIT License. See the LICENSE file for details.

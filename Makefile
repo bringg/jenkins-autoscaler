@@ -5,6 +5,12 @@ dependencies:
 	@echo "==> Downloading dependencies..."
 	@go mod download
 
+.PHONY: upgrade-deps
+upgrade-deps:
+	@echo "==> Upgrading dependencies..."
+	@go get -t -u ./...
+	@go mod tidy
+
 .PHONE: install
 install:
 	@echo "==> Installing binary... ${VERSION}"
