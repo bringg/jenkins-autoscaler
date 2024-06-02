@@ -1,0 +1,30 @@
+scaler:
+  dry_run: ${DRY_RUN:-false}
+  log_level: ${LOG_LEVEL:-error}
+  run_interval: ${RUN_INTERVAL:-1m}
+  gc_run_interval: ${GC_RUN_INTERVAL:-1h}
+  jenkins_url: ${JENKINS_URL}
+  jenkins_user: ${JENKINS_USER:-""}
+  jenkins_token: ${JENKINS_TOKEN:-""}
+  nodes_with_label: ${NODES_WITH_LABEL:-}
+  metrics_server_addr: ${METRICS_SERVER_ADDR:-:8080}
+  controller_node_name: ${CONTROLLER_NODE_NAME:-Built-In Node}
+  max_nodes: ${MAX_NODES:-1}
+  node_num_executors: ${NODE_NUM_EXECUTORS:-1}
+  min_nodes_during_working_hours: ${MIN_NODES_DURING_WORKING_HOURS:-2}
+  scale_up_threshold: ${SCALE_UP_THRESHOLD:-70}
+  scale_down_threshold: ${SCALE_DOWN_THRESHOLD:-30}
+  scale_up_grace_period: ${SCALE_UP_GRACE_PERIOD:-5m}
+  scale_down_grace_period: ${SCALE_DOWN_GRACE_PERIOD:-10m}
+  scale_down_grace_period_during_working_hours: ${SCALE_DOWN_GRACE_PERIOD_DURING_WORKING_HOURS:-10m}
+  working_hours_cron_expressions: ${WORKING_HOURS_CRON_EXPRESSIONS:-* 5-17 * * 1-5}
+  disable_working_hours: ${DISABLE_WORKING_HOURS:-true}
+
+backend:
+  gce:
+    project: ${GCE_PROJECT:-}
+    region: ${GCE_REGION:-us-east1}
+    instance_group_manager: ${GCE_INSTANCE_GROUP_MANAGER:-}
+  aws:
+    autoscaling_group_name: ${AWS_AUTOSCALING_GROUP_NAME:-}
+    region: ${AWS_REGION:-us-east-1}
