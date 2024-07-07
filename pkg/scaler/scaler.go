@@ -33,7 +33,7 @@ type (
 		lastScaleDown time.Time
 		lastScaleUp   time.Time
 		logger        *log.Entry
-		schedule      gronx.Gronx
+		schedule      *gronx.Gronx
 		metrics       *Metrics
 	}
 
