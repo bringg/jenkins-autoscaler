@@ -25,6 +25,7 @@ import (
 	jclient "github.com/bringg/jenkins-autoscaler/pkg/scaler/client"
 	mock_backend "github.com/bringg/jenkins-autoscaler/pkg/testing/mocks/backend"
 	mock_client "github.com/bringg/jenkins-autoscaler/pkg/testing/mocks/scaler"
+	schedule_test "github.com/bringg/jenkins-autoscaler/pkg/testing/mocks/schedule"
 )
 
 var _ = g.Describe("Scaler", func() {
@@ -74,6 +75,7 @@ var _ = g.Describe("Scaler", func() {
 			scal, err = New(cfg, bk, logger, metrics)
 			o.Expect(err).To(o.Not(o.HaveOccurred()))
 			scal.client = client
+			scal.schedule = &gronx.Gronx{C: schedule_test.NewFakeSegmentChecker()}
 		})
 
 		g.AfterEach(func() {
@@ -436,7 +438,7 @@ var _ = g.Describe("Scaler", func() {
 						ScaleDownGracePeriodDuringWorkingHours: fs.Duration(time.Minute * 1),
 						WorkingHoursCronExpressions:            "* * * * *",
 					},
-					schedule: gronx.New(),
+					schedule: &gronx.Gronx{C: schedule_test.NewFakeSegmentChecker()},
 					logger:   logrus.NewEntry(logger),
 				}
 			})
@@ -663,7 +665,7 @@ var _ = g.Describe("Scaler", func() {
 			scal := Scaler{
 				logger:   logrus.NewEntry(logger),
 				opt:      opt,
-				schedule: gronx.New(),
+				schedule: &gronx.Gronx{C: schedule_test.NewFakeSegmentChecker()},
 			}
 
 			o.Expect(scal.isMinimumNodes(MakeFakeNodes(numNodes))).To(o.Equal(result))
