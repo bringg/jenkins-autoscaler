@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/adhocore/gronx v1.8.1
 	github.com/adrg/xdg v0.4.0
-	github.com/aws/aws-sdk-go-v2 v1.30.1
+	github.com/aws/aws-sdk-go-v2 v1.30.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.24
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.168.0
