@@ -20,7 +20,7 @@ require (
 	github.com/onsi/gomega v1.34.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
-	github.com/rclone/rclone v1.67.0
+	github.com/rclone/rclone v1.68.0
 	github.com/samber/lo v1.47.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
@@ -88,7 +88,7 @@ require (
 	github.com/firefart/nonamedreturns v1.0.5 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.4 // indirect
 	github.com/ghostiam/protogetter v0.3.6 // indirect
 	github.com/go-critic/go-critic v0.11.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
