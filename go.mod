@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.43.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.177.2
 	github.com/bndr/gojenkins v1.1.0
-	github.com/go-playground/validator/v10 v10.22.0
+	github.com/go-playground/validator/v10 v10.22.1
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.59.1
 	github.com/hashicorp/go-multierror v1.1.1
