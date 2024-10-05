@@ -5,7 +5,7 @@ go 1.22.1
 toolchain go1.22.5
 
 require (
-	github.com/adhocore/gronx v1.19.0
+	github.com/adhocore/gronx v1.19.1
 	github.com/adrg/xdg v0.5.0
 	github.com/aws/aws-sdk-go-v2 v1.31.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.39
