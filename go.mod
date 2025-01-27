@@ -9,7 +9,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/aws/aws-sdk-go-v2 v1.34.0
 	github.com/aws/aws-sdk-go-v2/config v1.28.10
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.51.4
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.51.8
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.201.1
 	github.com/bndr/gojenkins v1.1.0
 	github.com/go-playground/validator/v10 v10.24.0
@@ -139,7 +139,6 @@ require (
 	github.com/jgautheron/goconst v1.7.1 // indirect
 	github.com/jingyugao/rowserrcheck v1.1.1 // indirect
 	github.com/jjti/go-spancheck v0.6.4 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/julz/importas v0.2.0 // indirect
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004 // indirect
 	github.com/karamaru-alpha/copyloopvar v1.1.0 // indirect
