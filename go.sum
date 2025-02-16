@@ -393,8 +393,8 @@ github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 h1:M8mH9eK4OUR4l
 github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567/go.mod h1:DWNGW8A4Y+GyBgPuaQJuWiy0XYftx4Xm/y5Jqk9I6VQ=
 github.com/raeperd/recvcheck v0.2.0 h1:GnU+NsbiCqdC2XX5+vMZzP+jAJC5fht7rcVTAhX74UI=
 github.com/raeperd/recvcheck v0.2.0/go.mod h1:n04eYkwIR0JbgD73wT8wL4JjPC3wm0nFtzBnWNocnYU=
-github.com/rclone/rclone v1.69.0 h1:fRfYu6Ha2Zn+nDLUa4ZuPXogddfeZG+jsCyhbOdAamw=
-github.com/rclone/rclone v1.69.0/go.mod h1:RfT8WA1rU1/wHyujQ1r0MZFdO89zLSDgCuu62uImArg=
+github.com/rclone/rclone v1.69.1 h1:pjkfJlZjUk2DGj7vofG9baD+LKADm7zvoHFGQM1tPIA=
+github.com/rclone/rclone v1.69.1/go.mod h1:VtzXeF46F7f6CtdCrxbZJdtsVVPBVYLGYyNG+KoTxIc=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
