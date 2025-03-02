@@ -25,7 +25,7 @@ require (
 	github.com/rclone/rclone v1.69.1
 	github.com/samber/lo v1.49.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	google.golang.org/api v0.219.0
