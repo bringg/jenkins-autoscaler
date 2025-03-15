@@ -2,6 +2,8 @@ module github.com/bringg/jenkins-autoscaler
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	github.com/adhocore/gronx v1.19.5
 	github.com/adrg/xdg v0.5.3
@@ -26,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
-	google.golang.org/api v0.224.0
+	google.golang.org/api v0.226.0
 )
 
 require (
