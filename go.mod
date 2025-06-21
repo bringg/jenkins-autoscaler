@@ -16,7 +16,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/go-retryablehttp v0.7.7
+	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
