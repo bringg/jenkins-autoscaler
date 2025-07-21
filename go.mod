@@ -9,7 +9,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/aws/aws-sdk-go-v2 v1.36.6
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.54.0
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.233.1
 	github.com/bndr/gojenkins v1.1.0
 	github.com/go-playground/validator/v10 v10.27.0
