@@ -54,8 +54,8 @@ github.com/ashanbrown/forbidigo v1.6.0 h1:D3aewfM37Yb3pxHujIPSpTf6oQk9sc9WZi8ger
 github.com/ashanbrown/forbidigo v1.6.0/go.mod h1:Y8j9jy9ZYAEHXdu723cUlraTqbzjKF1MUyfOKL+AjcU=
 github.com/ashanbrown/makezero v1.2.0 h1:/2Lp1bypdmK9wDIq7uWBlDF1iMUpIIS4A+pF6C9IEUU=
 github.com/ashanbrown/makezero v1.2.0/go.mod h1:dxlPhHbDMC6N6xICzFBSK+4njQDdK8euNO0qjQMtGY4=
-github.com/aws/aws-sdk-go-v2 v1.37.1 h1:SMUxeNz3Z6nqGsXv0JuJXc8w5YMtrQMuIBmDx//bBDY=
-github.com/aws/aws-sdk-go-v2 v1.37.1/go.mod h1:9Q0OoGQoboYIAJyslFyF1f5K1Ryddop8gqMhWx/n4Wg=
+github.com/aws/aws-sdk-go-v2 v1.37.2 h1:xkW1iMYawzcmYFYEV0UCMxc8gSsjCGEhBXQkdQywVbo=
+github.com/aws/aws-sdk-go-v2 v1.37.2/go.mod h1:9Q0OoGQoboYIAJyslFyF1f5K1Ryddop8gqMhWx/n4Wg=
 github.com/aws/aws-sdk-go-v2/config v1.30.2 h1:YE1BmSc4fFYqFgN1mN8uzrtc7R9x+7oSWeX8ckoltAw=
 github.com/aws/aws-sdk-go-v2/config v1.30.2/go.mod h1:UNrLGZ6jfAVjgVJpkIxjLufRJqTXCVYOpkeVf83kwBo=
 github.com/aws/aws-sdk-go-v2/credentials v1.18.2 h1:mfm0GKY/PHLhs7KO0sUaOtFnIQ15Qqxt+wXbO/5fIfs=
