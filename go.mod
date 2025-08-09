@@ -28,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
-	google.golang.org/api v0.244.0
+	google.golang.org/api v0.246.0
 )
 
 require (
