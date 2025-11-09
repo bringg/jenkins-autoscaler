@@ -8,5 +8,6 @@ updates:
   pull-request-branch-name:
     separator: "-"
   assignees:
-  - shareed2k
+  - Shareed2k
   - shamil
+  - nikolay-udovik
