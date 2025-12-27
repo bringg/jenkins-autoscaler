@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.4
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0
 	github.com/bndr/gojenkins v1.1.0
-	github.com/go-playground/validator/v10 v10.29.0
+	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/hashicorp/go-multierror v1.1.1
@@ -92,7 +92,7 @@ require (
 	github.com/firefart/nonamedreturns v1.0.5 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/ghostiam/protogetter v0.3.9 // indirect
 	github.com/go-critic/go-critic v0.12.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
