@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.4
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.278.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0
 	github.com/bndr/gojenkins v1.1.0
 	github.com/go-playground/validator/v10 v10.29.0
 	github.com/golang/mock v1.6.0
