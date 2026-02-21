@@ -412,8 +412,8 @@ github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 h1:M8mH9eK4OUR4l
 github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567/go.mod h1:DWNGW8A4Y+GyBgPuaQJuWiy0XYftx4Xm/y5Jqk9I6VQ=
 github.com/raeperd/recvcheck v0.2.0 h1:GnU+NsbiCqdC2XX5+vMZzP+jAJC5fht7rcVTAhX74UI=
 github.com/raeperd/recvcheck v0.2.0/go.mod h1:n04eYkwIR0JbgD73wT8wL4JjPC3wm0nFtzBnWNocnYU=
-github.com/rclone/rclone v1.73.0 h1:G20ugCrlZHxqzBJeCsy0L9Vat9qtQLZZtsgTErizrqs=
-github.com/rclone/rclone v1.73.0/go.mod h1:PYqL/ZTcwXG53lGtTK+24qbHYyRycptwHxAuCWLXeKU=
+github.com/rclone/rclone v1.73.1 h1:FCGZUd7sXO8+nIpbuXGPkd+f23o/ZACefrHtRGDAiDM=
+github.com/rclone/rclone v1.73.1/go.mod h1:T9HeSXv/SI9qJFkYLqsjY/5ljIFWJTVmTrG7H/4JrPY=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
