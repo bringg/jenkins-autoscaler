@@ -3,7 +3,7 @@ module github.com/bringg/jenkins-autoscaler
 go 1.25.8
 
 require (
-	github.com/adhocore/gronx v1.19.7
+	github.com/adhocore/gronx v1.20.0
 	github.com/adrg/xdg v0.5.3
 	github.com/aws/aws-sdk-go-v2 v1.41.9
 	github.com/aws/aws-sdk-go-v2/config v1.32.18
