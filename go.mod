@@ -5,10 +5,10 @@ go 1.25.8
 require (
 	github.com/adhocore/gronx v1.20.0
 	github.com/adrg/xdg v0.5.3
-	github.com/aws/aws-sdk-go-v2 v1.41.12
+	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.21
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.67.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.304.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0
 	github.com/bndr/gojenkins v1.1.0
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/golang/mock v1.6.0
@@ -55,11 +55,11 @@ require (
 	github.com/ashanbrown/makezero v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.26 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.28 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.27 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.26 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.1.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.3 // indirect
